@@ -111,7 +111,9 @@
       "reason": null,
       "status": "RAN",
       "threshold": null,
-      "warnings": []
+      "warnings": [
+        "the estimated block length is 2.90, so the returns carry serial dependence; the stationary bootstrap breaks dependence at every block join and the simulated drawdown is therefore understated. Measured understatement of the median: about 5 per cent at block length 4, 6 per cent at 7, 7 per cent at 11, with the 95th percentile understated by slightly more. Treat the quantiles as a lower bound rather than a central estimate. See D051."
+      ]
     },
     {
       "name": "risk_of_ruin",
@@ -209,7 +211,7 @@
     "input_name": "trades_long.csv",
     "input_sha256": "6c115c75879363924fe935b5b6634f684854e65b8f88096c9ad57398231c7c74",
     "n_replications": 3000,
-    "package_version": "1.0.1",
+    "package_version": "1.0.2",
     "seed": 20260804
   },
   "warnings": []

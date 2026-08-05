@@ -294,9 +294,17 @@ cadeia conhecida, dentro do erro amostral.
 
 Esta é a seção que separa o projeto de uma planilha de métricas.
 
-**Pré condição comum.** Todo Sharpe que entra nesta seção é o Sharpe sobre `PeriodReturns`,
-na mesma grade e com o mesmo `periods_per_year` para todas as configurações comparadas.
-Comparar Sharpes calculados em grades diferentes é erro de unidade.
+**Pré condição comum.** Todo Sharpe que entra nesta seção é o Sharpe **por período**, não
+anualizado, sobre `PeriodReturns`, na mesma grade e com o mesmo `periods_per_year` para todas as
+configurações comparadas. Comparar Sharpes calculados em grades diferentes é erro de unidade.
+
+A palavra "por período" não é redundante. A seção 1.2 produz quatro Sharpes distintos da mesma
+série: por período amostral, por período populacional, anualizado por raiz de q, e anualizado por
+HAC. Os dois anualizados são os que o relatório destaca. Alimentar o DSR com um anualizado
+enquanto a variância entre tentativas vem dos por período erra o resultado por um fator de raiz de
+q, que em grade diária é cerca de dezesseis, e o número resultante continua parecendo plausível.
+O código sempre esteve certo e mais preciso que este texto, ver a docstring de
+`deflated_sharpe_ratio`; a lacuna era da especificação.
 
 ### 3.1 Deflated Sharpe Ratio
 
@@ -416,6 +424,17 @@ não pode alterar nenhum rótulo já emitido.
 `core/risk.py`
 
 Sobre os `EquityPaths` simulados:
+
+**Limitação medida da composição com a seção 2, ver D051.** A distribuição de drawdown vem de
+caminhos reamostrados, e o bootstrap estacionário quebra a dependência em cada emenda de bloco.
+Sob independência a distribuição simulada é exata, razão medida de 1,0012 ± 0,0037. Com
+dependência ela fica **pequena demais**, e de forma monótona: 0,954 em rho 0,20, 0,940 em 0,40,
+0,926 em 0,60, com o percentil 95 um pouco pior que a mediana em todos os casos.
+
+A direção importa. O percentil 95 é o número que alguém usa para dimensionar capital e ele sai
+otimista, e o drawdown observado é colocado num quantil mais alto do que merece. Por isso o
+relatório emite aviso na própria seção sempre que o comprimento de bloco estimado passa de 2, em
+vez de deixar a ressalva só neste documento.
 
 - VaR e Expected Shortfall por percentil empírico, com intervalo de confiança por bootstrap
   sobre os próprios caminhos.

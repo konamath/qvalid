@@ -1483,6 +1483,61 @@ quebrou não era numérica.
 
 ---
 
+## D051. O bootstrap subestima o drawdown sob dependência, e o relatório passa a dizer isso
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Revisão de `02` com o sistema inteiro pronto, procurando o que só aparece na
+**composição** entre seções. `core/resample.py` foi verificado contra recuperação de comprimento
+de bloco, e `core/risk.py` contra formas fechadas de drawdown. Nenhum dos dois diz nada sobre o
+que acontece quando um alimenta o outro, e é essa composição que o relatório imprime.
+
+**Erro meu, registrado porque quase virou achado falso pela segunda vez hoje.** A primeira
+medição acusou o bootstrap superestimando o drawdown em 50 por cento, inclusive sob independência,
+onde ele deveria ser exato. Errado: comparei contra a verdade **incondicional** enquanto o
+bootstrap condiciona nos momentos realizados da série observada. Drawdown é fortemente convexo na
+deriva realizada, e média de quatro séries não recupera nada. O diagnóstico que derrubou o falso
+achado foi comparar, para uma série fixa, o bootstrap contra a verdade condicionada naquela
+série: 0,0811 contra 0,0798, com reamostragem i.i.d. ingênua em 0,0806. Os três coincidem.
+
+**Medição correta.** Nulo condicionado por série, 24 séries de 750 períodos cada, razão entre o
+drawdown simulado e o verdadeiro:
+
+| rho  | bloco estimado | razão da mediana  | razão do percentil 95 |
+| ---- | -------------- | ----------------- | --------------------- |
+| 0,00 | 1,20           | 1,0012 ± 0,0037   | 0,9961 ± 0,0052       |
+| 0,20 | 3,94           | 0,9543 ± 0,0066   | 0,9488 ± 0,0088       |
+| 0,40 | 7,35           | 0,9403 ± 0,0106   | 0,9233 ± 0,0133       |
+| 0,60 | 11,27          | 0,9256 ± 0,0139   | 0,9096 ± 0,0165       |
+
+Exato sob independência, e monotonicamente pior com a dependência. Em rho 0,20, que é
+autocorrelação plausível de retorno diário de estratégia, a subestimação da mediana é de 4,6 por
+cento, a **sete erros padrão** de 1.
+
+**Causa.** O bootstrap estacionário junta blocos de forma independente, então a dependência é
+quebrada em cada emenda e os caminhos reamostrados tendenciam menos que a série original.
+Drawdown é a estatística mais sensível a tendência, então sai pequeno demais. É propriedade
+conhecida de bootstrap por blocos; o que não existia era a magnitude medida para este uso.
+
+**Decisão.** Não corrigir o estimador, que seria pesquisa e não correção. Declarar, e declarar
+**onde a pessoa vê**: a seção de drawdown do relatório passa a carregar um aviso sempre que o
+comprimento de bloco estimado passa de 2, dizendo a direção do erro, a magnitude medida, e que os
+quantis devem ser lidos como limite inferior.
+
+**Por que o aviso e não só uma nota em `02`.** A direção é a perigosa. O quantil 95 é exatamente
+o número que alguém usa para dimensionar capital, e ele sai otimista. E o drawdown observado é
+colocado num quantil mais alto do que merece, então a estratégia parece pior do que é na única
+seção onde o erro engana para os dois lados ao mesmo tempo. Nota em documento que o leitor do
+relatório não abriu não é declaração.
+
+**Consequência.** Segunda vez no mesmo dia que uma medição minha mal desenhada quase virou achado.
+As duas foram pegas pelo mesmo procedimento: antes de escrever, construir o caso em que o
+resultado **deveria** ser conhecido e conferir se bate. Em rho zero a razão tinha que ser 1, e na
+primeira medição não era. Esse foi o sinal, não a plausibilidade do número.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

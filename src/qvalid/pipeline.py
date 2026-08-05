@@ -189,6 +189,39 @@ def _section(
     return Evidence(name=name, status=EvidenceStatus.RAN, payload=payload, warnings=warnings)
 
 
+#: Below this the understatement of D051 is inside its own measurement error.
+BLOCK_LENGTH_WARNING_THRESHOLD = 2.0
+
+
+def _block_bootstrap_warning(block_length: float) -> tuple[str, ...]:
+    """Warn that the simulated drawdown is understated under serial dependence.
+
+    The stationary bootstrap joins blocks independently, so dependence is
+    broken at every seam and the resampled paths trend less than the original
+    series does. Drawdown is the statistic most sensitive to trending, so it
+    comes out too small, and the direction is the dangerous one: the quantile
+    someone would size capital from is optimistic, and the observed drawdown is
+    placed higher in the distribution than it belongs.
+
+    Measured against a conditional null, 24 series of 750 periods each, ratio
+    of simulated to true median drawdown: 1.001 at block length 1.2, 0.954 at
+    3.9, 0.940 at 7.4, 0.926 at 11.3. See D051.
+
+    Silence would be the wrong default here. The number is printed prominently
+    and read by someone deciding how much to risk.
+    """
+    if block_length <= BLOCK_LENGTH_WARNING_THRESHOLD:
+        return ()
+    return (
+        f"the estimated block length is {block_length:.2f}, so the returns carry serial "
+        "dependence; the stationary bootstrap breaks dependence at every block join and "
+        "the simulated drawdown is therefore understated. Measured understatement of the "
+        "median: about 5 per cent at block length 4, 6 per cent at 7, 7 per cent at 11, "
+        "with the 95th percentile understated by slightly more. Treat the quantiles as a "
+        "lower bound rather than a central estimate. See D051.",
+    )
+
+
 def _number(value: Any) -> Any:
     """Coerce NumPy scalars and non finite floats into report friendly values."""
     if isinstance(value, np.generic):
@@ -429,7 +462,13 @@ def run_validation(
                 "quantiles": {str(k): _number(v) for k, v in distribution.quantiles.items()},
             }
 
-        panel.append(_section("drawdown_distribution", _drawdown))
+        panel.append(
+            _section(
+                "drawdown_distribution",
+                _drawdown,
+                warnings=_block_bootstrap_warning(bootstrap.block_length.block_length),
+            )
+        )
 
         if config.ruin_barrier is None:
             panel.append(
