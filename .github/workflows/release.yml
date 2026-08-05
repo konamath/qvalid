@@ -1,0 +1,69 @@
+name: release
+
+# Publishes to PyPI when a version tag is pushed. No token anywhere: PyPI
+# trusts this repository, this workflow file and this environment through OIDC,
+# and mints a credential that expires when the job ends. There is nothing to
+# leak because nothing exists between runs.
+#
+# Before the first run, configure a pending publisher at
+# https://pypi.org/manage/account/publishing/ with:
+#   project        qvalid
+#   owner          pedrocaram
+#   repository     qvalid
+#   workflow       release.yml
+#   environment    pypi
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  # The suite runs again on the exact commit being published. A tag can point
+  # at something that never went through the pull request checks.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest -q
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: the tag must match the version in pyproject
+        # A tag that disagrees with the metadata publishes a version nobody can
+        # find from the repository history. Cheaper to refuse than to yank.
+        run: |
+          version=$(uv run python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "tag $tag does not match pyproject version $version"
+            exit 1
+          fi
+      - run: uv run --with twine twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
