@@ -1,0 +1,18 @@
+# Mesa de drawdown móvel, medido do pico. É o campo mais consequente da ficha:
+# o mesmo alvo com a mesma perda máxima é muito mais difícil sob trailing.
+rules_id: TRAILING_50K
+account_size: 50000.0
+profit_target: 3000.0
+max_loss: 2000.0
+trailing: true
+daily_loss_limit: 1000.0
+min_trading_days: 5
+max_evaluation_days: 60
+evaluation_fee: 250.0
+fee_refunded_on_pass: true
+funded:
+  profit_split: 0.90
+  payout_cycle_days: 14
+  max_loss: 2000.0
+  min_payout: 100.0
+  trailing: true

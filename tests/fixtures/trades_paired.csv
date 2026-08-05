@@ -1,0 +1,25 @@
+trade_no,type,instrument,direction,at,price,quantity,commission,net_pnl,setup
+T0001,Entry Long,ESZ4,Long,2024-01-02 09:45:00,4780.0,2.0,0.0,0.0,breakout
+T0001,Exit Long,ESZ4,Long,2024-01-02 12:45:00,4788.25,2.0,4.2,820.8,breakout
+T0002,Entry Short,ESZ4,Short,2024-01-03 09:45:00,4780.0,1.0,0.0,0.0,fade
+T0002,Exit Short,ESZ4,Short,2024-01-03 12:45:00,4771.25,1.0,2.1,435.4,fade
+T0003,Entry Long,NQZ4,Long,2024-01-04 09:45:00,16750.0,2.0,0.0,0.0,breakout
+T0003,Exit Long,NQZ4,Long,2024-01-04 12:45:00,16758.25,2.0,4.2,325.8,breakout
+T0004,Entry Short,ESZ4,Short,2024-01-05 09:45:00,4780.0,1.0,0.0,0.0,fade
+T0004,Exit Short,ESZ4,Short,2024-01-05 12:45:00,4780.0,1.0,2.1,-2.1,fade
+T0005,Entry Long,ESZ4,Long,2024-01-08 09:45:00,4780.0,2.0,0.0,0.0,breakout
+T0005,Exit Long,ESZ4,Long,2024-01-08 12:45:00,4779.75,2.0,4.2,-29.2,breakout
+T0006,Entry Short,NQZ4,Short,2024-01-09 09:45:00,16750.0,1.0,0.0,0.0,fade
+T0006,Exit Short,NQZ4,Short,2024-01-09 12:45:00,16741.0,1.0,2.1,177.9,fade
+T0007,Entry Long,ESZ4,Long,2024-01-10 09:45:00,4780.0,2.0,0.0,0.0,breakout
+T0007,Exit Long,ESZ4,Long,2024-01-10 12:45:00,4779.75,2.0,4.2,-29.2,breakout
+T0008,Entry Short,ESZ4,Short,2024-01-11 09:45:00,4780.0,1.0,0.0,0.0,fade
+T0008,Exit Short,ESZ4,Short,2024-01-11 12:45:00,4783.0,1.0,2.1,-152.1,fade
+T0009,Entry Long,NQZ4,Long,2024-01-12 09:45:00,16750.0,2.0,0.0,0.0,breakout
+T0009,Exit Long,NQZ4,Long,2024-01-12 12:45:00,16758.25,2.0,4.2,325.8,breakout
+T0010,Entry Short,ESZ4,Short,2024-01-15 09:45:00,4780.0,1.0,0.0,0.0,fade
+T0010,Exit Short,ESZ4,Short,2024-01-15 12:45:00,4776.5,1.0,2.1,172.9,fade
+T0011,Entry Long,ESZ4,Long,2024-01-16 09:45:00,4780.0,2.0,0.0,0.0,breakout
+T0011,Exit Long,ESZ4,Long,2024-01-16 12:45:00,4778.5,2.0,4.2,-154.2,breakout
+T0012,Entry Short,NQZ4,Short,2024-01-17 09:45:00,16750.0,1.0,0.0,0.0,fade
+T0012,Exit Short,NQZ4,Short,2024-01-17 12:45:00,16753.25,1.0,2.1,-67.1,fade

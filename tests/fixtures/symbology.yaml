@@ -1,0 +1,31 @@
+# Versioned symbology map. Multiplier and tick size live here because D007 puts
+# the P&L coherence check at the adapter boundary, where they are available.
+symbols:
+  ES:
+    venue: CME
+    multiplier: 50.0
+    tick_size: 0.25
+    currency: USD
+    calendar: WEEKDAYS_UTC
+    contract_root: ES
+    source_ids:
+      generic: ESZ4
+      tradingview: "CME_MINI:ES1!"
+  NQ:
+    venue: CME
+    multiplier: 20.0
+    tick_size: 0.25
+    currency: USD
+    calendar: WEEKDAYS_UTC
+    contract_root: NQ
+    source_ids:
+      generic: NQZ4
+  FDAX:
+    venue: EUREX
+    multiplier: 25.0
+    tick_size: 0.5
+    currency: EUR
+    calendar: WEEKDAYS_UTC
+    contract_root: FDAX
+    source_ids:
+      generic: FDAXZ4

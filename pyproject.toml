@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qvalid"
+version = "1.0.0"
+description = "Statistical validation of trading strategies from a trade log"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Pedro Caram" }]
+keywords = ["trading", "backtest", "overfitting", "sharpe", "bootstrap"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+# Every entry below is imported by src/qvalid. The list previously carried
+# statsmodels, pyarrow and duckdb, none of which was ever imported, which is
+# roughly two hundred megabytes charged to anyone installing the package. A
+# test now enforces that a declared dependency is an imported one. See D044.
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+]
+
+[project.urls]
+Repository = "https://github.com/pedrocaram/qvalid"
+Issues = "https://github.com/pedrocaram/qvalid/issues"
+
+[project.scripts]
+qvalid = "qvalid.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "hypothesis>=6", "mypy>=1.10", "ruff>=0.5", "pytest-cov>=5"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qvalid"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "NPY", "D", "ANN", "RUF"]
+# D105: __post_init__ and __init__ are dataclass hooks, documented at class level.
+# ANN401: Any is required by the free form tags field and by the generic array helpers.
+# N818: ThresholdViolation is a base for the *Error classes, not itself raised.
+ignore = ["D203", "D213", "D105", "D107", "ANN401", "N818"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests document themselves through their names and class docstrings.
+"tests/*" = ["D", "ANN", "B017", "RUF007"]
+# Namespace packages: the layer is documented in 01, not in an empty __init__.
+"src/qvalid/*/__init__.py" = ["D104"]
+# B008: typer declares options by calling typer.Option in the default, which is
+# the documented API of the library and not an accident.
+"src/qvalid/cli.py" = ["B008"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "qvalid.core.*"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"

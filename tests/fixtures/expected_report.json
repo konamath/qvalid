@@ -1,0 +1,216 @@
+{
+  "grid": {
+    "active_fraction": 1.0,
+    "basis": "FIXED_INITIAL",
+    "calendar_id": "WEEKDAYS_UTC",
+    "initial_capital": 100000.0,
+    "n_periods": 760,
+    "period": "DAILY",
+    "periods_per_year": 261.18435754189943,
+    "years": 2.9098220396988363
+  },
+  "panel": [
+    {
+      "name": "trade_metrics",
+      "observed": null,
+      "payload": {
+        "expectancy": -3.163684210526323e-05,
+        "hit_rate": 0.4723684210526316,
+        "kurtosis": 3.08166711926637,
+        "n_trades": 760,
+        "profit_factor": 0.9775107493642045,
+        "skewness": 0.01994975574503329,
+        "win_loss_ratio": 1.0918713384263121
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "calendar_metrics",
+      "observed": null,
+      "payload": {
+        "cagr": -0.008329127251251345,
+        "cumulative_return": -0.024043999999999954,
+        "kelly_fraction": -15.917141290689734,
+        "max_drawdown": 0.1538300254765672,
+        "sharpe_ci_high": 0.7603750701180317,
+        "sharpe_ci_low": -2.5836809949395776,
+        "sharpe_hac": -0.6294899933243991,
+        "sharpe_sqrt_q": -0.9116529624107729,
+        "sortino_annualised": -1.2408110755715667,
+        "volatility_annualised": 0.05735037903711785
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "grid_selection",
+      "observed": null,
+      "payload": {
+        "candidates": [
+          "DAILY: n=760, active=1.0000, holding=0.1250, feasible=True",
+          "WEEKLY: n=152, active=1.0000, holding=0.0179, feasible=True",
+          "MONTHLY: n=35, active=1.0000, holding=0.0040, feasible=False"
+        ],
+        "chosen": "DAILY",
+        "forced": false
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "resampling",
+      "observed": null,
+      "payload": {
+        "automatic": true,
+        "block_length": 2.895727861370961,
+        "capped": false,
+        "method": "stationary_bootstrap",
+        "n_paths": 3000,
+        "n_steps": 761
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "risk_tail",
+      "observed": null,
+      "payload": {
+        "expected_shortfall": 0.25624583999999967,
+        "value_at_risk": 0.2065249999999999
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "drawdown_distribution",
+      "observed": null,
+      "payload": {
+        "mean": 0.1357186529252494,
+        "observed": 0.1538300254765672,
+        "observed_quantile": 0.6793333333333333,
+        "quantiles": {
+          "0.05": 0.05986046232800297,
+          "0.25": 0.09025274507918904,
+          "0.5": 0.12531796331176992,
+          "0.75": 0.16905953244271282,
+          "0.95": 0.25295703635069167
+        },
+        "standard_error": 0.0010966118931275653
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "risk_of_ruin",
+      "observed": null,
+      "payload": {
+        "barrier": 85000.0,
+        "ci_high": 0.22733333333333333,
+        "ci_low": 0.19666666666666666,
+        "horizon_steps": 760,
+        "never_hit_fraction": 0.7886666666666666,
+        "probability": 0.21133333333333335,
+        "standard_error": 0.007465841718811626,
+        "time_quantiles": {
+          "0.05": 199.0,
+          "0.5": 467.0,
+          "0.95": 722.35
+        }
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "deflated_sharpe",
+      "observed": null,
+      "payload": null,
+      "reason": "the number of configurations tested was not declared, so no correction for search was applied; estimating it would fabricate the input that determines the result, see D004",
+      "status": "NOT_REQUESTED",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "regimes",
+      "observed": null,
+      "payload": {
+        "concentration": 0.22592918280694885,
+        "equality_of_means_p": 1.5789290909293596e-11,
+        "n_states": 9,
+        "reference_id": "reference_daily.csv",
+        "totals": {
+          "0": 0.0010929999999999974,
+          "1": -0.015913000000000007,
+          "2": 0.054721,
+          "3": -0.079199,
+          "4": -0.055475000000000003,
+          "5": 0.13742499999999996,
+          "6": -0.10798800000000001,
+          "7": -0.03057300000000001,
+          "8": 0.140795
+        },
+        "undefined_periods": 60,
+        "warmup": 60,
+        "window": 21
+      },
+      "reason": null,
+      "status": "RAN",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "verdict",
+      "observed": [
+        "deflated_sharpe"
+      ],
+      "payload": null,
+      "reason": "required sections did not run, so this strategy is not comparable with one whose did: deflated_sharpe: NOT_REQUESTED: the number of configurations tested was not declared, so no correction for search was applied; estimating it would fabricate the input that determines the result, see D004",
+      "status": "SUPPRESSED",
+      "threshold": [
+        "resampling",
+        "deflated_sharpe"
+      ],
+      "warnings": []
+    }
+  ],
+  "parameters": {
+    "confidence_level": 0.95,
+    "currency": "USD",
+    "hac_bandwidth": 21,
+    "hac_lag_selection": 6,
+    "n_trials": null,
+    "pnl_atol_rule": "tick_size * multiplier * qty, one tick per round turn",
+    "pnl_rtol": 1e-06,
+    "risk_free_rate": 0.045,
+    "risk_free_rate_per_period": 0.00016854223231033139,
+    "ruin_barrier": 85000.0,
+    "verdict_requirements": [
+      "resampling",
+      "deflated_sharpe"
+    ]
+  },
+  "provenance": {
+    "config_sha256": "5b7cfad22c09f2f1649c198480399f3be69ce95c093615a04f22be496f2d449b",
+    "executed_at": "2026-08-05T00:00:00Z",
+    "input_name": "trades_long.csv",
+    "input_sha256": "1a54749468d817f629284ac972b10ac178a1da42b03fc98eb8feea04ed299c36",
+    "n_replications": 3000,
+    "package_version": "1.0.0",
+    "seed": 20260804
+  },
+  "warnings": []
+}

@@ -1,0 +1,11 @@
+# Run configuration. Same reasoning as D016: every parameter that changes a
+# number lives in a versioned file, so someone else can reproduce the run.
+symbology_path: symbology.yaml
+mapping_path: mapping_generic.yaml
+initial_capital: 50000.0
+basis: FIXED_INITIAL
+seed: 20260804
+risk_free_rate: 0.045
+n_paths: 2000
+forced_period: DAILY
+ruin_barrier: 45000.0

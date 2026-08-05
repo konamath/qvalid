@@ -1,0 +1,15 @@
+# Mesa sem limite de tempo e com exigência alta de dias operados. Sem limite
+# diário. Testa o eixo oposto: paciência em vez de aperto.
+rules_id: PATIENT_100K
+account_size: 100000.0
+profit_target: 8000.0
+max_loss: 5000.0
+trailing: false
+min_trading_days: 20
+evaluation_fee: 500.0
+fee_refunded_on_pass: false
+funded:
+  profit_split: 0.75
+  payout_cycle_days: 30
+  max_loss: 5000.0
+  min_payout: 500.0

@@ -1,0 +1,19 @@
+# Mesa de drawdown estático, medido do saldo inicial. Conta de 50k.
+# Números ilustrativos: verifique contra as regras vigentes da mesa antes de usar.
+rules_id: STATIC_50K
+account_size: 50000.0
+profit_target: 3000.0
+max_loss: 2000.0
+trailing: false
+daily_loss_limit: 1000.0
+min_trading_days: 5
+max_evaluation_days: 60
+evaluation_fee: 250.0
+fee_refunded_on_pass: true
+funded:
+  profit_split: 0.80
+  payout_cycle_days: 14
+  max_loss: 2000.0
+  min_payout: 100.0
+  trailing: false
+  daily_loss_limit: 1000.0

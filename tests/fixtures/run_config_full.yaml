@@ -1,0 +1,10 @@
+# Configuração completa: com barreira de ruína e série de referência de regime.
+symbology_path: symbology.yaml
+mapping_path: mapping_generic.yaml
+initial_capital: 100000.0
+basis: FIXED_INITIAL
+seed: 20260804
+risk_free_rate: 0.045
+n_paths: 3000
+ruin_barrier: 85000.0
+reference_path: reference_daily.csv

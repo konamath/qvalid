@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lint and types once. Running them on every platform would triple the cost
+  # to learn the same thing three times.
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+
+  # The matrix exists for one reason beyond breadth: tests/unit/test_reproducibility.py
+  # compares the report byte for byte against a reference produced on Linux.
+  # math.log and math.exp are not required to be correctly rounded and differ
+  # between C libraries, so whether the byte equality survives macOS and Windows
+  # is a question only this matrix can answer. See D043. If it goes red there,
+  # the claim in the README is what is wrong, not the test.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - run: uv sync --group dev
+      - name: suite and coverage
+        run: >
+          uv run pytest -q
+          --cov=qvalid --cov-report=term-missing --cov-fail-under=99
+      - name: core must stay at one hundred per cent
+        run: >
+          uv run pytest -q
+          --cov=qvalid.core --cov-report=term-missing --cov-fail-under=100
+
+  # The v1.0 criterion of 05, run as someone cloning would run it: install the
+  # built package into a clean environment, with no source tree on the path,
+  # and check the example still produces the committed reference.
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv run python examples/validate_full.py
+      - name: the produced report matches the committed reference
+        run: uv run python tests/check_example_output.py

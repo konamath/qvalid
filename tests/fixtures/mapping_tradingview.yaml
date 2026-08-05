@@ -1,0 +1,26 @@
+# Modelo para a exportação "List of trades" do TradingView.
+#
+# ATENÇÃO: escrito sem um export real à mão. Verifique contra o seu próprio
+# arquivo antes de confiar em qualquer número. Um mapeamento errado é o modo de
+# falha que D017 documenta, e a identidade de coerência não pega tudo.
+source: generic
+row_layout: TWO_ROWS_PER_TRADE
+pair_key_column: trade_no
+leg_column: type
+entry_markers: ["Entry Long", "Entry Short"]
+exit_markers: ["Exit Long", "Exit Short"]
+timestamp_column: at
+price_column: price
+fee_convention: MAGNITUDE
+pnl_convention: NET
+pnl_source: COLUMN
+timestamp_format: "%Y-%m-%d %H:%M:%S"
+timezone: America/New_York
+columns:
+  trade_id: trade_no
+  symbol: instrument
+  side: direction
+  qty: quantity
+  fees: commission
+  pnl: net_pnl
+tag_columns: [setup]

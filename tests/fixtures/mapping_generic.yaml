@@ -1,0 +1,21 @@
+# Declarative column mapping. This file is provenance: it records which column
+# was read as what, which timezone naive stamps were assumed to be in, and which
+# sign convention the fee column used. See D016.
+source: generic
+fee_convention: MAGNITUDE
+pnl_convention: NET
+pnl_source: COLUMN
+timestamp_format: "%Y-%m-%d %H:%M:%S"
+timezone: America/New_York
+columns:
+  trade_id: id
+  symbol: instrument
+  side: direction
+  qty: quantity
+  entry_ts: opened_at
+  exit_ts: closed_at
+  entry_px: open_price
+  exit_px: close_price
+  fees: commission
+  pnl: net_pnl
+tag_columns: [setup]
