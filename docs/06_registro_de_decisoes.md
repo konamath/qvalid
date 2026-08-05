@@ -1156,6 +1156,134 @@ entre 0,8 e 1.
 
 ---
 
+## D041. Proibir o BLAS dentro de `core`
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** A v1.0 exige que alguém clone o repositório e reproduza o exemplo. D030 fixa
+igualdade byte a byte, mas o que a suíte verificava era que duas execuções **na mesma máquina**
+coincidem. Máquina diferente é outra afirmação, e ela nunca tinha sido testada.
+
+**Erro de método, registrado porque quase virou achado falso.** O primeiro experimento comparou
+o hash do relatório sob 1, 2 e 8 threads de BLAS e deu três hashes distintos. Conclusão aparente:
+o relatório não é reprodutível. Errado. O hash incluía o `executed_at`, que muda entre execuções
+de qualquer forma. Refeito com o timestamp excluído, os seis relatórios, duas execuções por
+contagem de threads, saíram idênticos em JSON e em HTML. Lição: experimento de determinismo que
+não controla o campo declaradamente volátil não mede determinismo, mede o relógio.
+
+**Achado real, medido.** `a @ b` despacha para o BLAS, que divide a redução entre threads acima de
+um limiar. Medido em OpenBLAS 0.3.29: idêntico até 10⁴ elementos, **divergente a partir de 10⁵**.
+O exemplo enviado tem 760 trades e por isso reproduz; um log com cem mil observações não
+reproduziria entre máquinas com contagens de núcleo diferentes.
+
+**Decisão.** Nenhum produto matricial dentro de `core`. `inner_product` e `quadratic_form` fazem
+o mesmo com `numpy.sum` do produto elementar, cuja soma é pareada, de thread única, e cuja ordem
+depende só do comprimento do vetor. Um teste lê a árvore sintática de `core/*.py` e falha diante
+de qualquer nó `MatMult`.
+
+**Alternativas descartadas.** Fixar variáveis de ambiente de threading dentro do pacote: precisa
+acontecer antes do import de numpy e uma biblioteca não tem esse direito sobre o processo de
+quem a usa. `einsum` com `optimize=False`: determinístico, mas soma ingênua.
+
+**Consequência.** A troca **não custa exatidão, ganha**. Contra `math.fsum` sobre dez milhões de
+elementos: erro relativo 1,4e-16 para `numpy.sum`, 2,3e-15 para o BLAS, 1,1e-15 para `einsum`. O
+BLAS era o menos exato dos três. O custo é um array temporário do tamanho da entrada. Efeito
+lateral: `bartlett_long_run_covariance` agora é simétrica **exatamente**, com tolerância zero, o
+que o `dgemm` não garantia.
+
+---
+
+## D042. Proveniência guarda o nome do arquivo, nunca o caminho
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** `RunProvenance.input_path` guardava o caminho absoluto. Dois checkouts do mesmo
+repositório em pastas diferentes produzem relatórios diferentes, o que torna o critério da v1.0
+inalcançável em qualquer máquina que não seja a que gerou a referência.
+
+**Decisão.** O campo passa a ser `input_name` e guarda apenas o nome do arquivo. O
+`input_sha256` já identifica o dado, então largar o diretório não perde informação nenhuma.
+
+**Consequência.** Segundo motivo, que não estava no critério e é mais importante que ele: o
+caminho absoluto colocava o diretório pessoal de quem rodou dentro de um relatório feito para ser
+entregue a outra pessoa. A correção fecha um vazamento pequeno e silencioso.
+
+---
+
+## D043. Igualdade byte a byte entre sistemas operacionais fica com a matriz de CI
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Removido o BLAS, resta `math.log` e `math.exp`, que o padrão C não exige
+corretamente arredondadas e que diferem entre glibc, a libm da Apple e a da Microsoft. Aqui só
+existe Linux, então a afirmação "reproduz em qualquer máquina" não pode ser medida.
+
+**Decisão.** A comparação exata contra a referência commitada roda em toda a matriz de CI, três
+sistemas operacionais e duas versões de Python. Não é marcada como esperada para falhar em
+nenhuma delas.
+
+**Alternativas descartadas.** Restringir a comparação exata ao Linux e usar tolerância nos
+demais: `04` proíbe tolerância escolhida para o teste passar, e essa seria exatamente isso.
+Afirmar a igualdade sem testá la: é o que o projeto inteiro existe para não fazer.
+
+**Consequência.** Se a matriz ficar vermelha no macOS ou no Windows, o que está errado é o
+parágrafo de reprodutibilidade do README, não o teste. O resultado dessa matriz é o único
+pedaço da v1.0 que não foi verificado antes de fechar, e está declarado como tal.
+
+---
+
+## D044. Dependência declarada é dependência importada
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Ao preparar o empacotamento, uma varredura das importações revelou que
+`statsmodels`, `pyarrow` e `duckdb` estavam em `dependencies` desde a v0.1 e **nunca foram
+importados**. Nove versões cobrando da ordem de duzentos megabytes de quem instalasse o pacote,
+por nada.
+
+**Decisão.** Os três saem. Um teste lê `pyproject.toml`, lê a árvore sintática de `src/qvalid` e
+falha nas duas direções: declarada e não importada, importada e não declarada.
+
+**Consequência.** Metadado de empacotamento é a única parte de um projeto que nada exercita, e
+por isso é onde a deriva não faz barulho. O erro não apareceu em nenhuma das nove revisões de
+fechamento de versão porque nenhuma delas tinha motivo para olhar. A verificação estrutural
+custa um arquivo de teste e remove a classe inteira.
+
+---
+
+## D045. Nome fixado em `qvalid`, porque `qval` está ocupado
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Cumpre.** D009
+
+**Contexto.** D009 adiou a checagem de disponibilidade para o critério de pronto da v1.0,
+argumentando que é o momento em que o nome fica caro de trocar. A checagem foi feita e deu
+resposta negativa nos dois candidatos naturais: `qval` está publicado desde 2018, versão 0.4.2,
+biblioteca de validação de query params sob licença MIT; e `quantify`, o nome que o projeto usa
+informalmente, é um framework de computação quântica com release ativo em julho de 2026.
+
+**Decisão.** `qvalid`, verificado livre no PyPI. Troca mecânica: 212 ocorrências, feitas por
+substituição com fronteira de palavra, mais o prefixo de variável de ambiente
+`QVAL_FRED_API_KEY` para `QVALID_FRED_API_KEY`. Suíte verde depois, sem ajuste manual.
+
+**Alternativas descartadas.** `quantify-trading`, livre, mas o prefixo `quantify-` já é o
+namespace de quem publica `quantify-core` e `quantify-scheduler`, e vizinhança confusa é um
+custo permanente. Reivindicar `qval` por PEP 541: processo lento e o pacote tem dono
+identificável.
+
+**Consequência.** D009 acertou no gatilho e errou na estimativa implícita. O adiamento foi
+barato porque o nome não aparecia hardcoded fora do `pyproject.toml` e dos imports, exatamente
+como D009 previu, mas o resultado mostra que a checagem podia ter sido feita na v0.1 ao custo de
+um minuto. Prazo ancorado em evento resolve o problema de D005, e ainda assim adiar uma
+verificação gratuita não tem defesa.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

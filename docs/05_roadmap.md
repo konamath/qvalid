@@ -196,13 +196,35 @@ Pronto quando:
 
 ## v1.0 Publicação
 
+**Status: fechada em 2026-08-05.** 671 testes, `core` em 100 por cento de cobertura, pacote em
+99. Entregue: README, licença MIT, CI, referência commitada do relatório, e o pacote renomeado
+para `qvalid`. Decisões em D041 a D045.
+
 Escopo: documentação, exemplo reprodutível ponta a ponta, README com resultado ilustrativo,
 CI rodando testes, licença.
 
 Pronto quando:
-- Alguém clona o repositório e reproduz o exemplo com um comando.
-- README explica em menos de uma página o que a biblioteca decide e com base em quê.
-- Nome do pacote definitivo registrado no PyPI. Ver D009.
+- Alguém clona o repositório e reproduz o exemplo com um comando. **Feito e verificado por
+  comando**, não por impressão: clone real, pacote construído e instalado em alvo isolado sem a
+  árvore de fontes no caminho, `python examples/validate_full.py`, e o relatório bate com
+  `tests/fixtures/expected_report.json` exatamente, sobre 144 valores.
+- README explica em menos de uma página o que a biblioteca decide e com base em quê. **Feito.**
+  Os números que ele cita estão fixados em teste, então a página não pode deixar de ser verdade
+  em silêncio.
+- Nome do pacote definitivo registrado no PyPI. Ver D009. **Resolvido em D045**: `qval` está
+  ocupado, `quantify` também. O nome é `qvalid`. Falta o ato de publicar, que depende de conta e
+  de token e portanto é do dono do projeto, não da suíte.
+
+Três achados que a preparação da versão produziu, todos corrigidos e nenhum visível antes de
+alguém perguntar "isso reproduz em outra máquina?":
+- O BLAS quebrava a igualdade byte a byte acima de 10⁵ observações. Ver D041.
+- A proveniência gravava caminho absoluto, o que impede reprodução em outro checkout e ainda
+  vaza o diretório pessoal em um relatório feito para ser entregue. Ver D042.
+- Três dependências declaradas desde a v0.1 nunca foram importadas. Ver D044.
+
+Ressalva declarada: a igualdade byte a byte entre sistemas operacionais é afirmada pela matriz
+de CI e não por medição feita aqui, porque só existe Linux neste ambiente e `math.log` e
+`math.exp` diferem entre bibliotecas C. Ver D043.
 
 ---
 
