@@ -22,15 +22,27 @@ from __future__ import annotations
 
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs
 
 from qvalid.ui.pages import form_page, run_page
+from qvalid.ui.upload import parse_multipart
 
 __all__ = ["serve"]
 
 DEFAULT_PORT = 8765
-_MAX_BODY_BYTES = 64 * 1024
-"""A form with two paths cannot be larger; anything bigger is not our form."""
+
+STOP_HINT = "press \u2303C, the control key, to stop"
+"""How to stop it, named the way a Mac keyboard labels the key.
+
+It said "control C" first, and the first person to read it went looking for a
+key that a Mac writes as the symbol. A message that confused its first reader
+will confuse its second, so the symbol is shown and the word kept beside it."""
+_MAX_BODY_BYTES = 64 * 1024 * 1024
+"""Sixty four megabytes, which is a trade log of a few million rows.
+
+Larger than the two paths this used to accept, because the log now arrives as
+bytes rather than as a path. Bounded anyway: an unbounded read is how a local
+server becomes a way to exhaust the machine's memory, and no export of closed
+trades reaches this size."""
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -50,9 +62,14 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path != "/run":
             self._respond(404, form_page(error=f"no page at {self.path}"))
             return
-        length = min(int(self.headers.get("Content-Length") or 0), _MAX_BODY_BYTES)
-        submitted = parse_qs(self.rfile.read(length).decode("utf-8"), keep_blank_values=True)
-        status, page = run_page({key: value[0] for key, value in submitted.items()})
+        declared = int(self.headers.get("Content-Length") or 0)
+        if declared > _MAX_BODY_BYTES:
+            self._respond(
+                413, form_page(error=f"the upload is larger than {_MAX_BODY_BYTES // 1024**2} MB")
+            )
+            return
+        body = self.rfile.read(declared)
+        status, page = run_page(parse_multipart(body, self.headers.get("Content-Type", "")))
         self._respond(status, page)
 
     def log_message(self, format: str, *args: object) -> None:
@@ -80,7 +97,7 @@ def serve(port: int = DEFAULT_PORT, *, open_browser: bool = True) -> None:  # pr
     """
     server = HTTPServer(("127.0.0.1", port), _Handler)
     address = f"http://127.0.0.1:{port}/"
-    print(f"Quantify interface on {address}\npress control C to stop")
+    print(f"Quantify interface on {address}\n{STOP_HINT}")
     if open_browser:
         webbrowser.open(address)
     try:

@@ -1809,6 +1809,49 @@ e ele se paga na primeira vez que alguém procura `quantify` no PyPI e não acha
 
 ---
 
+## D059. O log sobe por upload, a configuração continua por caminho
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Completa.** D057
+
+**Contexto.** A interface entregue em D057 era um formulário sobre dois caminhos absolutos. `05`
+pede "parar de digitar comando para rodar validação rotineira", e trocar um comando por dois
+caminhos digitados não é isso: a pessoa vai ao Finder, copia caminho, cola. O primeiro uso real
+expôs a fricção junto com outras duas, a versão errada instalada e a tecla de parar.
+
+**Decisão, e a assimetria é o ponto.** O **log** sobe por upload: vem de onde a plataforma o
+largou, muda a cada execução, e obrigar a achar o caminho absoluto é exatamente a fricção a
+remover. A **configuração** continua caminho, e não por falta de tentativa: ela nomeia
+`symbology_path` e `mapping_path` **relativos a si mesma**, então um YAML enviado sozinho chega
+sem os dois arquivos de que depende. Além disso D016 faz da configuração provenência versionada,
+e caminho é o identificador certo para arquivo que deve morar em lugar permanente.
+
+**Multipart pela biblioteca padrão.** Fronteiras, aspas, quebras de linha e codificação são fonte
+conhecida de erro sutil, e nada disso está escrito aqui: o corpo vai para `email`, que lê esse
+formato há décadas. O invólucro tem nove linhas; acertar o formato à mão teria cem e estaria
+errado de um jeito que só um nome de arquivo estranho revelaria. Um teste manda nome com espaço,
+que é o caso real mais comum e o bug mais comum de parser artesanal.
+
+**O nome enviado é preservado, e isso não é cosmético.** D042 põe o nome do arquivo na
+proveniência. Escrever o upload sob nome gerado daria à pessoa um relatório cuja proveniência
+nomeia um arquivo que nunca existiu. O arquivo é escrito num diretório temporário **sob o nome
+original**, e só o último componente dele: nome de arquivo é texto de outra máquina e nunca vira
+caminho. Verificado por comando: envio com nome `janeiro.csv` e com `../../etc/trades.csv`, o
+primeiro aparece inteiro no relatório e o segundo aparece reduzido à folha.
+
+**Dois testes meus estavam errados, e vale registrar como.** O que proibia aritmética na interface
+acusou `Path(scratch) / nome`, que é junção de caminho: proibir um operador pega a sintaxe e erra
+o alvo. Foi trocado por proibir a interface de **ler valores de dentro** do relatório, que é o que
+`05` de fato veda. E o que conferia a mensagem de parada lia o texto do fonte e falhava em
+`⌃`, que **é** o símbolo depois que o Python lê o literal; passou a conferir a string que a
+pessoa vê. Teste de fonte é teste de como o caractere foi soletrado.
+
+Junto, a mensagem de parada passou a mostrar o símbolo `⌃` ao lado da palavra, porque a primeira
+pessoa que a leu não achou a tecla. Mensagem que confundiu o primeiro leitor confunde o segundo.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

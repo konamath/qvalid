@@ -61,7 +61,7 @@ letter is the defect the tool exists to correct.
 ```bash
 pip install qvalid
 qvalid validate trades.csv --config run.yaml --out report.html
-qvalid ui                                   # the same run, in a browser
+qvalid ui                                   # drag the log in, in a browser
 ```
 
 Developing it rather than using it? Install from the checkout so the `qvalid` command is the
