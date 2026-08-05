@@ -509,6 +509,7 @@ def run_validation(
     # outside it, so a trial matrix off the grid aborted the run and the person
     # lost the metrics, the risk section and the regimes over one bad file.
     # See D053.
+    risk_free_per_period = sharpe.risk_free_rate_per_period
     trials, trials_error = None, None
     try:
         trials = _load_trials(base, config, returns)
@@ -552,9 +553,16 @@ def run_validation(
         )
 
         def _deflated() -> dict[str, Any]:
-            sharpes = _trial_sharpe_ratios(trials)
+            # Excess on both sides. 02 section 1.2 defines the Sharpe on excess
+            # returns, so a deflation computed on raw ones is a second quantity
+            # travelling under the same name. On the real data example the two
+            # disagreed in sign: the headline Sharpe read -0.26 while the
+            # deflation reported a 93 per cent chance the true Sharpe was
+            # positive, and both numbers were internally correct. See D055.
+            excess = np.asarray(returns.values, dtype=np.float64) - risk_free_per_period
+            sharpes = _trial_sharpe_ratios(trials, risk_free_per_period)
             estimate = deflated_sharpe_ratio(
-                np.asarray(returns.values, dtype=np.float64),
+                excess,
                 n_trials=max(declared, kept),
                 trial_variance=float(np.var(sharpes, ddof=1)),
             )
@@ -656,7 +664,17 @@ def run_validation(
             [
                 Candidate(
                     name="strategy",
-                    outcomes=terminal_return(bootstrap.paths),
+                    # Excess of the risk free alternative over the same horizon,
+                    # accumulated additively because the basis is a fixed initial
+                    # capital. The certainty equivalent then answers the question
+                    # the person actually faces, which is whether to prefer this
+                    # to holding cash, and not whether the number is above zero.
+                    # On the real data example the raw form gave +0.24 while the
+                    # headline Sharpe was -0.26: the verdict flattering a
+                    # strategy the rest of the report had already refused. That
+                    # is the defect 02 section 7 exists to prevent. See D055.
+                    outcomes=terminal_return(bootstrap.paths)
+                    - risk_free_per_period * returns.values.size,
                     sections_run=ran_so_far,
                     sections_absent=absent_so_far,
                 )
@@ -766,16 +784,29 @@ def _ruin_payload(paths: Any, barrier: float, config: RunConfig) -> dict[str, An
     }
 
 
-def _trial_sharpe_ratios(trials: TrialMatrix) -> FloatArray:
-    """Per period Sharpe of every column, which is what the deflation needs.
+def _trial_sharpe_ratios(trials: TrialMatrix, risk_free_per_period: float) -> FloatArray:
+    """Per period **excess** Sharpe of every column, on the run's own conventions.
 
-    Per period and not annualised. ``02`` section 3 says so, and the docstring
-    of :func:`~qvalid.core.overfit.deflated_sharpe_ratio` says so: feeding an
-    annualised Sharpe here while the observed one is per period is wrong by a
-    factor of the square root of the periods per year, about sixteen on a daily
-    grid, and the answer still looks plausible.
+    Three conventions have to match the observed strategy, not one, and each
+    was found the hard way:
+
+    Per period and not annualised. ``02`` section 3 says so and so does the
+    docstring of :func:`~qvalid.core.overfit.deflated_sharpe_ratio`. An
+    annualised Sharpe here against a per period observed one is wrong by the
+    square root of the periods per year.
+
+    The run's basis, which the caller supplies by writing the trials file that
+    way, because the matrix carries the basis as a declared field.
+
+    And **excess of the same risk free rate**. This is the one that got past a
+    first reading of the real data example: the observed Sharpe came out at
+    -0.26 while the deflation reported a 93 per cent chance the true Sharpe was
+    positive, because the trials had been written gross of a risk free rate of
+    4.5 per cent and the observed strategy was measured net of it. Subtracting
+    here, in the one place that compares the two, means the trials file is
+    always raw returns and the convention is applied once. See D055.
     """
-    values = np.asarray(trials.values, dtype=np.float64)
+    values = np.asarray(trials.values, dtype=np.float64) - risk_free_per_period
     dispersion = values.std(axis=0, ddof=1)
     return np.asarray(np.where(dispersion > 0.0, values.mean(axis=0) / dispersion, 0.0))
 

@@ -7,8 +7,8 @@ capability the whole project is built around could not be reached from the
 tool's own entry point.
 
 ``TestTheCorrectionActuallyBites`` is the demonstration. On the shipped
-fixtures the probability that the true Sharpe is positive falls from 0.40 to
-0.02 once twenty searched configurations are accounted for. A tool that
+fixtures the probability that the true Sharpe is positive falls from 0.060 to
+0.0004 once twenty searched configurations are accounted for. A tool that
 reported only the first number would be the defect this project exists to
 correct.
 """
@@ -47,14 +47,30 @@ class TestTheCorrectionActuallyBites:
     def test_the_search_correction_changes_the_answer(self, run) -> None:
         """The whole argument of ``02`` section 3, in two numbers.
 
-        Undeflated, the strategy looks like a four in ten chance of a positive
-        true Sharpe. Deflated by the twenty configurations that were tried
-        before this one was chosen, it is one in fifty.
+        Six per cent becomes four in ten thousand once the twenty
+        configurations tried before this one are accounted for.
+
+        These numbers moved when D055 put both sides of the deflation on excess
+        returns. Before that the undeflated probability read 0.40 while the
+        headline Sharpe was -0.91, which no reader could reconcile, because the
+        two were different quantities under one name.
         """
         payload = entry(run.report, "deflated_sharpe").payload
-        assert payload["probability_against_zero"] == pytest.approx(0.40, abs=0.02)
-        assert payload["probability"] == pytest.approx(0.020, abs=0.005)
-        assert payload["probability"] < payload["probability_against_zero"] / 10.0
+        assert payload["probability_against_zero"] == pytest.approx(0.060, abs=0.005)
+        assert payload["probability"] == pytest.approx(0.0004, abs=0.0003)
+        assert payload["probability"] < payload["probability_against_zero"] / 50.0
+
+    def test_the_deflation_agrees_in_sign_with_the_headline_sharpe(self, run) -> None:
+        """D055. A negative Sharpe and a probable positive true Sharpe cannot both hold.
+
+        The check that would have caught the convention mismatch immediately,
+        and that nothing performed: two sections of one report answering the
+        same question in opposite directions.
+        """
+        sharpe = entry(run.report, "calendar_metrics").payload["sharpe_sqrt_q"]
+        probability = entry(run.report, "deflated_sharpe").payload["probability_against_zero"]
+        assert sharpe < 0.0
+        assert probability < 0.5
 
     def test_the_deflation_uses_per_period_sharpes(self, run) -> None:
         """Annualising here would inflate the dispersion by the periods per year.

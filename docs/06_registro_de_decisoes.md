@@ -1602,6 +1602,93 @@ código faz. Aqui o docstring do módulo já dizia a resposta certa, e ninguém 
 
 ---
 
+## D054. A ferramenta rodou sobre mercado de verdade
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Até aqui tudo que a ferramenta tinha visto era sintético: séries tiradas de
+distribuições escolhidas por quem escreveu a fixture. Isso torna qualquer verificação
+auto referente, e foi a ressalva que abriu esta sessão.
+
+**O que foi feito.** Dez anos de fechamento diário do S&P 500, obtidos do FRED sem chave e sem
+cadastro. Varredura de vinte janelas de cruzamento de média móvel, com as perdedoras guardadas,
+então o efeito de seleção é real. A vencedora vira log de trades e passa pelo importador como
+qualquer outro.
+
+**Resultado, e ele é forte:**
+
+    grade escolhida            MENSAL, não diária
+    Sharpe observado           -0,257   intervalo [-0,83, +0,32]
+    DSR contra zero             0,246
+    DSR deflacionado            0,097
+    melhor tentativa           -0,0202   máximo esperado só da busca  +0,0665
+    PBO                         0,705    logit mediano -0,693
+    veredito                   -0,1203
+
+Três coisas que só apareceram com dado real:
+
+**A grade escolhida foi mensal.** Setenta e sete trades em 2512 sessões não fazem uma série
+diária, e `02` seção 1.1 recusa fingir que fazem. A ferramenta corrigiu o instinto de quem
+escreveu a varredura.
+
+**A melhor das vinte configurações é pior que o que a busca sozinha produziria.** Melhor Sharpe
+por período -0,0202 contra máximo esperado de +0,0665. Não é que a estratégia seja fraca: é que
+selecionar o máximo de vinte ruídos daria mais que isso.
+
+**PBO em 0,705.** A vencedora dentro da amostra fica abaixo da mediana fora dela em setenta por
+cento das 12870 combinações. Um número que só faz sentido quando existe uma busca de verdade
+para medir.
+
+**Lacuna de uso que a demonstração expôs.** A matriz de tentativas precisa estar na grade que a
+execução escolhe, e ninguém sabe qual é antes de rodar. A saída hoje é rodar uma vez, ler
+`grid_selection` no relatório, e gerar a matriz naquela grade. Fica registrado como aspereza, não
+resolvido.
+
+---
+
+## D055. Uma convenção por relatório, não uma por seção
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** O primeiro relatório sobre dado real trouxe dois números que não podiam conviver:
+
+    calendar_metrics.sharpe    -0,257    (negativo)
+    deflated_sharpe            0,934     (93 por cento de chance do Sharpe verdadeiro ser positivo)
+
+São a mesma estratégia. `02` seção 1.2 define o Sharpe sobre retorno **excedente**, e
+`calendar_metrics` subtraía a taxa livre de risco de 4,5 por cento. O Sharpe deflacionado era
+calculado sobre retorno **bruto**, dos dois lados, então era internamente consistente e respondia
+outra pergunta. Duas quantidades sob um nome, num relatório cuja razão de existir é não deixar
+número ambíguo passar.
+
+O veredito era um terceiro caso: equivalente certeza sobre retorno terminal bruto, dando +0,2367
+enquanto o resto do relatório dizia que a estratégia perde para o caixa.
+
+**Decisão.** Retorno excedente em toda parte que compara contra o caixa: os dois lados da
+deflação, e os resultados terminais que alimentam o equivalente certeza. A subtração acontece em
+um lugar por seção e o arquivo de tentativas é sempre retorno cru, então a convenção é aplicada
+uma vez e não duas.
+
+**Efeito, sobre a fixture:**
+
+    DSR contra zero     0,403  ->  0,060      agora coerente com Sharpe -0,91
+    DSR deflacionado    0,020  ->  0,0004
+    veredito           +0,237  -> -0,133      parou de lisonjear
+
+**Consequência.** O 0,403 antigo não era um erro de cálculo, e é isso que o torna perigoso: cada
+seção estava certa sozinha. O defeito só existe na leitura conjunta, que é a única leitura que
+alguém faz. Um teste novo fixa a coerência de sinal entre as duas seções, que é a verificação de
+uma linha que teria pego isso imediatamente e que ninguém fazia.
+
+Registro também que isto só apareceu porque a estratégia real perde para o caixa. Sobre as
+fixtures antigas, com taxa livre de risco zero em algumas e sinal favorável em outras, as duas
+convenções coincidiam ou a diferença passava por ruído. Dado real com juro de 4,5 por cento
+separou as duas.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
