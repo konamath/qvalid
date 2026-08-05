@@ -64,10 +64,20 @@ supplies contract multiplier and tick size, which the P&L coherence check needs.
 
 ## Reproducibility
 
-Two runs on the same input with the same seed produce byte identical reports, the timestamp
-excluded, and the committed reference report is compared against on every run of the test suite.
+Two runs on the same input with the same seed, **in one environment**, produce byte identical
+reports with the timestamp excluded. That is the claim about the seed governing everything, and
+it is checked exactly.
+
+Across environments the claim is weaker and measured rather than hoped for. Changing the version
+of numpy or scipy moves two of the report's 144 values by one or two units in the last place,
+because a third moment and an F survival function are reductions whose summation order those
+libraries choose. Every run of the test suite compares against the committed reference at `1e-9`
+relative, which is a thousand times tighter than the six significant figures the report renders,
+so the report a person reads is identical. Text is compared with no tolerance at all: a regime
+identifier or a suppression reason that changed is not a rounding difference.
+
 Nothing inside `core` calls the BLAS, because the BLAS splits long reductions across threads and
-the summation order then depends on how many cores the machine has.
+the summation order would then depend on how many cores the machine has.
 
 ## Licence
 

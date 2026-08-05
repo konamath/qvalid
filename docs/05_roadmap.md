@@ -227,9 +227,17 @@ Quarto achado, este do próprio ato de ligar a CI: `mypy src` acusava 39 erros, 
 correção de D042. Sobreviveu à suíte inteira, ao exemplo e à verificação por clone limpo. Os 39
 foram corrigidos, não silenciados. Ver D046.
 
-Ressalva declarada: a igualdade byte a byte entre sistemas operacionais é afirmada pela matriz
-de CI e não por medição feita aqui, porque só existe Linux neste ambiente e `math.log` e
-`math.exp` diferem entre bibliotecas C. Ver D043.
+A ressalva declarada no fechamento, de que a igualdade entre ambientes não tinha sido medida,
+resolveu se contra a versão escrita. A CI mediu: dois dos 144 valores se movem de um a dois ULP
+ao trocar a versão de numpy e scipy, no **mesmo** sistema operacional. O critério passou a ser
+igualdade exata dentro de um ambiente mais concordância a `1e-9` relativo contra a referência,
+derivado dos seis algarismos que o relatório renderiza. Ver D049, que substitui D043.
+
+Registro honesto do que isso significa: das quatro reprovações que a CI produziu depois do
+fechamento, três eram defeitos reais que nenhuma verificação local podia ver, e uma era uma
+afirmação forte demais no README. "Verificável por comando" valia para o meu ambiente, não para o
+de quem clona. A regra de abertura de `05` continua certa; o que faltava era dizer em qual
+ambiente o comando roda.
 
 ---
 

@@ -1397,6 +1397,54 @@ sobre não conseguir verificar contra o ambiente da CI. A ressalva estava certa 
 
 ---
 
+## D049. Igualdade byte a byte vale dentro de um ambiente, não entre versões
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Substitui.** D043
+
+**Contexto.** Corrigido D048, a CI finalmente chegou até a comparação com a referência e reprovou
+com **dois** valores movidos, de 144:
+
+    skewness              0.019949755745033305  vs  0.01994975574503329     relativo 7,0e-16
+    equality_of_means_p   1,578929090929324e-11 vs 1,5789290909293596e-11   relativo 2,3e-14
+
+Um a dois ULP, e os dois em Linux. D043 tinha atribuído o risco a bibliotecas C diferentes entre
+sistemas operacionais. A previsão estava certa no mecanismo e **errada no alcance**: quebra muito
+antes disso, numa troca de versão de numpy e scipy no mesmo sistema. Os dois valores são
+reduções cuja ordem de soma a biblioteca escolhe: um terceiro momento, e uma função de
+sobrevivência da F que passa por `log` e `exp` da plataforma.
+
+**Decisão.** O critério da v1.0 muda de "byte a byte" para duas afirmações, cada uma verificada
+onde é verdadeira:
+
+1. Duas execuções **no mesmo ambiente** produzem bytes idênticos, excluído o timestamp. É a
+   afirmação sobre a semente governar tudo, é incondicional, e continua exata em
+   `test_report.py::TestByteForByte`.
+2. Contra a referência commitada, os números batem a `1e-9` relativo e **todo o resto bate
+   exatamente**.
+
+**Por que 1e-9, e por que isso não é tolerância frouxa.** `04` proíbe tolerância escolhida para o
+teste passar, então o número é derivado, não escolhido. O relatório renderiza **seis algarismos
+significativos**. Duas execuções que concordam melhor que isso produzem o mesmo relatório para
+quem lê, e é essa a propriedade que vale defender. `1e-9` fica três ordens abaixo do último
+dígito que alguém vê, e cinco ordens acima do drift medido. Confirmado nos dois lados: o critério
+passa no drift real de 2,3e-14 e em 1e-10, e **pega** 1e-8, 1e-6 e 1 por cento. Texto não tem
+tolerância nenhuma, porque arredondamento explica um número se mover e nunca explica uma palavra
+se mover.
+
+**Alternativas descartadas.** Commitar o `uv.lock` e comparar sob ambiente travado: tornaria a
+igualdade exata verdadeira, mas ao preço de a referência só valer para quem usa o lock, e a
+pergunta que interessa é se o relatório que **o usuário** produz é o mesmo, com as versões que
+ele tem. Continua sendo uma opção se um dia a exatidão bit a bit for exigida por auditoria.
+Remover a comparação: perderia a verificação mais forte que a v1.0 tem.
+
+**Consequência.** A quarta reprovação seguida da CI, e a única das quatro que não era defeito.
+Era a afirmação que estava errada. O texto do README dizia mais do que o projeto podia sustentar,
+e agora diz o que foi medido.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
