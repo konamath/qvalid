@@ -8,7 +8,7 @@ name: release
 # Before the first run, configure a pending publisher at
 # https://pypi.org/manage/account/publishing/ with:
 #   project        qvalid
-#   owner          pedrocaram
+#   owner          konamath
 #   repository     qvalid
 #   workflow       release.yml
 #   environment    pypi

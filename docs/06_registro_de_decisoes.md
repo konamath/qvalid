@@ -1284,6 +1284,43 @@ verificação gratuita não tem defesa.
 
 ---
 
+## D046. Normalizar caminho na fronteira, e deixar o mypy limpo para que ele sirva
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Ao ligar o mypy na CI apareceram 39 erros. Um deles não era ruído:
+
+    pipeline.py:560: Item "str" of "str | Path" has no attribute "name"
+
+A assinatura pública de `run_validation` promete `str | Path` desde a v0.6, e a mudança de D042
+passou a chamar `log_path.name`. Chamada com string, a função **quebra** com `AttributeError`.
+Nenhum teste pegou porque todo chamador do repositório por acaso segura um `Path`.
+
+**Decisão.** `log_path` e `config_path` viram `Path` na primeira linha do corpo. Um teste passa
+strings e confere que o relatório sai idêntico. Os 38 erros restantes foram corrigidos, não
+silenciados, e a CI roda `mypy src` como etapa que barra o merge.
+
+**Como eram os 38.** Doze eram stubs ausentes de `pandas`, `yaml` e `scipy`, resolvidos
+adicionando os pacotes de stub ao grupo de desenvolvimento. Dezenove eram um único padrão em
+`propfirm.py`: `np.full` infere forma literal `tuple[int]` e `np.where` devolve `tuple[int, ...]`,
+então declarar os nove acumuladores com os aliases de `contracts` resolveu o bloco inteiro. O
+resto eram `ndarray` sem argumentos de tipo, um `any(axis=1)` que tipa como escalar ou array, e
+duas chamadas passando array onde `report/svg.py` pede `Sequence[float]`, corrigidas convertendo
+na chamada para manter o `svg` livre de numpy.
+
+**Consequência.** O mypy estava rodando localmente e sendo ignorado, e por isso não valia nada.
+Um verificador com 39 erros conhecidos não distingue o quadragésimo. O ganho não é a tipagem: é
+que o próximo erro real vai aparecer sozinho. Registro também que o bug de D042 foi **introduzido
+por mim hoje** e sobreviveu à suíte inteira, ao exemplo ponta a ponta e à verificação por clone
+limpo. Só o verificador de tipos viu.
+
+Aliases novos em `contracts.py`: `BoolArray` e `SideArray`. O segundo nomeia o int8 que
+`TradeLog.side` já usava, e a razão está no docstring: lado é mais ou menos um, então int8 é a
+largura honesta e oito vezes menor.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

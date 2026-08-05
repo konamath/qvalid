@@ -222,6 +222,11 @@ alguém perguntar "isso reproduz em outra máquina?":
   vaza o diretório pessoal em um relatório feito para ser entregue. Ver D042.
 - Três dependências declaradas desde a v0.1 nunca foram importadas. Ver D044.
 
+Quarto achado, este do próprio ato de ligar a CI: `mypy src` acusava 39 erros, e um deles era um
+`AttributeError` na metade `str` da assinatura pública de `run_validation`, introduzido hoje pela
+correção de D042. Sobreviveu à suíte inteira, ao exemplo e à verificação por clone limpo. Os 39
+foram corrigidos, não silenciados. Ver D046.
+
 Ressalva declarada: a igualdade byte a byte entre sistemas operacionais é afirmada pela matriz
 de CI e não por medição feita aqui, porque só existe Linux neste ambiente e `math.log` e
 `math.exp` diferem entre bibliotecas C. Ver D043.

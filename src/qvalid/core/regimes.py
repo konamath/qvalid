@@ -497,7 +497,7 @@ def transition_matrix(labels: RegimeLabels, *, allow_collapse: bool = False) -> 
         A state below the minimum with ``allow_collapse`` left at ``False``,
         or still below it after collapsing.
     """
-    joint = np.asarray(labels.joint())
+    joint: IntArray = np.asarray(labels.joint())
     collapsed = False
     counts = labels.state_counts()
     thin = {state: count for state, count in counts.items() if count < MIN_STATE_OBS}

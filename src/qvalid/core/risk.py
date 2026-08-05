@@ -556,7 +556,7 @@ def first_passage(
         )
 
     breached = values <= barrier
-    hit = breached.any(axis=1)
+    hit = np.asarray(breached.any(axis=1))
     steps = np.where(hit, breached.argmax(axis=1), -1).astype(np.int64)
 
     rng = np.random.default_rng(seed)

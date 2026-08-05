@@ -63,6 +63,21 @@ class TestTheExampleReproduces:
             f"{len(moved)} value(s) moved: {moved[:10]}"
         )
 
+    def test_a_string_path_works_as_the_signature_promises(self) -> None:
+        """D046. The signature says ``str | Path`` and nothing ever passed a string.
+
+        Every caller in the repository happens to hold a ``Path``, so the
+        string half of the public signature was never executed. It crashed on
+        ``log_path.name``, and only mypy saw it.
+        """
+        run = run_validation(
+            str(FIXTURES / "trades_long.csv"),
+            str(FIXTURES / "run_config_full.yaml"),
+            executed_at=FROZEN_TIMESTAMP,
+        )
+        assert run.report.provenance.input_name == "trades_long.csv"
+        assert report_to_json(run.report) == EXPECTED.read_text(encoding="utf-8")
+
     def test_the_reference_carries_no_absolute_path(self) -> None:
         """D042. A path from the machine that produced it cannot reproduce elsewhere."""
         reference = json.loads(EXPECTED.read_text(encoding="utf-8"))

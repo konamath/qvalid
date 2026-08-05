@@ -54,6 +54,9 @@ __all__ = [
 
 FloatArray = npt.NDArray[np.float64]
 IntArray = npt.NDArray[np.int64]
+BoolArray = npt.NDArray[np.bool_]
+SideArray = npt.NDArray[np.int8]
+"""Side is plus or minus one, so int8 is the honest width and eight times smaller."""
 
 NANOS_PER_SECOND = 1_000_000_000
 
@@ -205,7 +208,7 @@ class TradeLog:
 
     trade_id: npt.NDArray[np.str_]
     symbol: npt.NDArray[np.str_]
-    side: npt.NDArray[np.int8]
+    side: SideArray
     qty: FloatArray
     multiplier: FloatArray
     entry_ns: IntArray

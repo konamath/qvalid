@@ -223,8 +223,16 @@ def run_validation(
     a declared number of trials is the case D004 names, and the regime section
     without a reference series is the same shape of decision.
     """
+    # Normalise once, at the boundary. The signature promises ``str | Path``
+    # and everything below is free to use path methods. Before this line the
+    # provenance called ``.name`` on a value that could be a string, which is a
+    # crash on the documented public signature that no test reached because
+    # every caller in the repository happened to pass a Path. See D046.
+    log_path = Path(log_path)
+    config_path = Path(config_path)
+
     config = load_config(config_path)
-    base = Path(config_path).resolve().parent
+    base = config_path.resolve().parent
     symbology = load_symbology(base / config.symbology_path)
     mapping = load_mapping(base / config.mapping_path)
     imported = read_trade_log_csv(log_path, mapping, symbology)
@@ -383,9 +391,7 @@ def run_validation(
             )
             charts.append(
                 histogram(
-                    np.asarray(
-                        [distribution.quantiles[q] for q in sorted(distribution.quantiles)] * 2
-                    ),
+                    [distribution.quantiles[q] for q in sorted(distribution.quantiles)] * 2,
                     title="Simulated maximum drawdown, quantiles",
                     x_label="fraction of peak",
                     y_label="count",
@@ -548,7 +554,10 @@ def run_validation(
     charts.insert(
         0,
         line_chart(
-            np.asarray(returns.values).cumsum() * config.initial_capital + config.initial_capital,
+            (
+                np.asarray(returns.values).cumsum() * config.initial_capital
+                + config.initial_capital
+            ).tolist(),
             title="Observed equity, additive on initial capital",
             x_label="period",
             y_label="account currency",

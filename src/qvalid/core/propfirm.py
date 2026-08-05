@@ -54,7 +54,7 @@ import numpy as np
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from qvalid.contracts import EquityPaths, FloatArray, IntArray, Period, Unit
+from qvalid.contracts import BoolArray, EquityPaths, FloatArray, IntArray, Period, Unit
 from qvalid.core.constants import DEFAULT_CONFIDENCE_LEVEL
 from qvalid.exceptions import InsufficientSampleError, SchemaError, UnitMismatchError
 
@@ -347,18 +347,18 @@ def evaluate(
     n_paths, n_days = daily.shape
 
     size = rules.account_size
-    equity = np.full(n_paths, size)
-    peak = np.full(n_paths, size)
-    traded = np.zeros(n_paths, dtype=np.int64)
-    outcome = np.full(n_paths, EvaluationOutcome.RUNNING, dtype=np.int64)
-    pass_day = np.full(n_paths, _NOT_SET, dtype=np.int64)
+    equity: FloatArray = np.full(n_paths, size)
+    peak: FloatArray = np.full(n_paths, size)
+    traded: IntArray = np.zeros(n_paths, dtype=np.int64)
+    outcome: IntArray = np.full(n_paths, EvaluationOutcome.RUNNING, dtype=np.int64)
+    pass_day: IntArray = np.full(n_paths, _NOT_SET, dtype=np.int64)
 
-    funded_equity = np.full(n_paths, np.nan)
-    funded_peak = np.full(n_paths, np.nan)
-    funded_since = np.full(n_paths, _NOT_SET, dtype=np.int64)
-    funded_alive = np.zeros(n_paths, dtype=bool)
-    payouts = np.zeros(n_paths)
-    first_payout_day = np.full(n_paths, _NOT_SET, dtype=np.int64)
+    funded_equity: FloatArray = np.full(n_paths, np.nan)
+    funded_peak: FloatArray = np.full(n_paths, np.nan)
+    funded_since: IntArray = np.full(n_paths, _NOT_SET, dtype=np.int64)
+    funded_alive: BoolArray = np.zeros(n_paths, dtype=bool)
+    payouts: FloatArray = np.zeros(n_paths)
+    first_payout_day: IntArray = np.full(n_paths, _NOT_SET, dtype=np.int64)
 
     daily_limit = rules.daily_loss_limit
     funded_daily_limit = rules.funded.daily_loss_limit

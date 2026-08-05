@@ -49,7 +49,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from qvalid.adapters.symbology import SymbologyMap
 from qvalid.adapters.validation import validate_trade_log
-from qvalid.contracts import Side, TradeLog, to_utc_nanos
+from qvalid.contracts import FloatArray, Side, SideArray, TradeLog, to_utc_nanos
 from qvalid.core.constants import PNL_RTOL
 from qvalid.exceptions import SchemaError
 
@@ -511,7 +511,7 @@ def _parse_timestamps(raw: pd.Series, mapping: ColumnMapping, field_name: str) -
     return [stamp.to_pydatetime() for stamp in parsed]
 
 
-def _parse_sides(raw: pd.Series, mapping: ColumnMapping) -> np.ndarray:
+def _parse_sides(raw: pd.Series, mapping: ColumnMapping) -> SideArray:
     """Map source direction tokens onto :class:`~qvalid.contracts.Side`."""
     tokens = raw.astype(str).str.strip().str.casefold()
     long_tokens = {token.casefold() for token in mapping.side_long}
@@ -533,7 +533,7 @@ def _parse_sides(raw: pd.Series, mapping: ColumnMapping) -> np.ndarray:
     return out
 
 
-def _numeric(frame: pd.DataFrame, column: str, field_name: str) -> np.ndarray:
+def _numeric(frame: pd.DataFrame, column: str, field_name: str) -> FloatArray:
     values = pd.to_numeric(frame[column], errors="coerce")
     if values.isna().any():
         raise SchemaError(
