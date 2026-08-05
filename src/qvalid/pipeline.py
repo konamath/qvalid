@@ -33,6 +33,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from qvalid import __version__
 from qvalid.adapters.calendars import weekdays_utc
 from qvalid.adapters.symbology import load_symbology
+from qvalid.adapters.timestamps import to_utc_nanos_from_pandas
 from qvalid.adapters.tradelog import load_mapping, read_trade_log_csv
 from qvalid.contracts import Basis, FloatArray, IntArray, Period
 from qvalid.core.constants import DEFAULT_CONFIDENCE_LEVEL, PNL_RTOL
@@ -647,14 +648,9 @@ def _load_reference(base: Path, config: RunConfig, period_end_ns: IntArray) -> F
             "aligning by position would silently shift every regime label"
         )
     stamps = pd.to_datetime(frame.iloc[:, 0], utc=False)
-    if stamps.dt.tz is None:
-        raise SchemaError(
-            f"the reference timestamps at {path} are naive; 01 forbids naive timestamps "
-            "at every boundary"
-        )
     lookup = dict(
         zip(
-            stamps.dt.tz_convert("UTC").astype("int64").to_numpy(),
+            to_utc_nanos_from_pandas(stamps, source=str(path)),
             frame.iloc[:, 1].to_numpy(dtype=np.float64),
             strict=True,
         )

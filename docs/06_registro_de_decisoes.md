@@ -1357,6 +1357,46 @@ de versão de stub não fixada vai discordar entre local e CI, e a autoridade é
 
 ---
 
+## D048. A resolução do timestamp é declarada, nunca herdada do parser
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Passado o mypy, a CI reprovou 26 testes com a mesma mensagem: a série de
+referência não alinhava com a grade. O diagnóstico estava na diferença impressa:
+
+    - 2024-01-02
+    + 1970-01-20
+
+Dois módulos escreviam `series.dt.tz_convert("UTC").astype("int64")` e tratavam o resultado como
+nanossegundos. Isso é verdade quando o pandas guarda a coluna em resolução de nanossegundo e
+**falso** quando guarda em microssegundo, que é o que versões novas inferem de strings ISO. O
+mesmo arquivo passava a produzir timestamps mil vezes menores.
+
+**Por que não passou despercebido.** Porque D032 já tinha trocado o alinhamento de regime de
+posicional para casamento exato de timestamp. Com alinhamento posicional isso teria deslocado
+silenciosamente todos os rótulos e produzido um relatório plausível e errado. Foi o alinhamento
+exato que transformou um erro de unidade de fator mil em uma recusa barulhenta. A decisão de
+D032 pagou por si aqui, oito meses de trabalho depois de tomada.
+
+**Decisão.** A conversão vive em `adapters/timestamps.py`, uma função com um trabalho só, e a
+resolução é dita: `.dt.as_unit("ns")` antes do cast. Um teste lê a árvore sintática e proíbe
+`astype("int64")` em qualquer outro módulo do pacote.
+
+**Verificação, e o problema que ela resolve.** O bug só aparece na versão de pandas da CI, então
+esperar por ela deixaria a correção sem prova. Os testes forçam cada resolução explicitamente com
+`.dt.as_unit` e afirmam que a resposta não se move. Restaurando o código antigo, a
+parametrização falha em `s`, `ms` e `us` e **passa em `ns`**, que é exatamente por que o defeito
+sobreviveu a 671 testes: o pandas local escolhia `ns`. Um teste vale o que vale a sua capacidade
+de falhar, e este foi visto falhando.
+
+**Consequência.** Terceira reprovação seguida da CI, e a mais séria das três: um erro real, que
+atingiria qualquer usuário com pandas recente, e que nenhuma das verificações locais podia ver
+porque todas rodavam sobre a mesma versão. É a resposta empírica à ressalva que a v1.0 declarou
+sobre não conseguir verificar contra o ambiente da CI. A ressalva estava certa em existir.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

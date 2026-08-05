@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 from qvalid.adapters.cache import CacheKey, Fetcher, LocalCache
+from qvalid.adapters.timestamps import to_utc_nanos_from_pandas
 from qvalid.contracts import FloatArray, IntArray
 from qvalid.exceptions import SchemaError
 
@@ -282,9 +283,7 @@ def _build_series(
             "every regime undefined with nothing looking wrong"
         )
     return MarketSeries(
-        timestamp_ns=np.ascontiguousarray(
-            stamps[usable].astype("int64").to_numpy(), dtype=np.int64
-        ),
+        timestamp_ns=to_utc_nanos_from_pandas(stamps[usable], source=series_id),
         values=np.ascontiguousarray(numeric[usable].to_numpy(), dtype=np.float64),
         series_id=series_id,
         n_missing=n_missing,
