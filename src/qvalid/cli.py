@@ -17,6 +17,7 @@ from pathlib import Path
 import typer
 
 from qvalid import __version__
+from qvalid.adapters.tradelog import REQUIRED_FIELDS
 from qvalid.exceptions import QvalError
 from qvalid.pipeline import run_validation
 from qvalid.report.html import write_html
@@ -83,6 +84,65 @@ def validate(
     typer.echo(
         f"{len(run.report.sections_run)} sections ran, {len(absent)} did not: {sorted(absent)}"
     )
+
+
+@app.command()
+def inspect(
+    log: Path = typer.Argument(..., help="CSV trade log to read the header of."),
+) -> None:
+    """Read a log's header and print a column mapping to start from. See D060.
+
+    A draft, not a decision. D016 makes the mapping versioned provenance, and a
+    file written by a guesser would be provenance nobody chose, so this prints
+    and the person saves. What it cannot resolve it says so about, rather than
+    picking: a mapping that parses and means something other than what the
+    person has is the failure this project exists to remove.
+    """
+    import csv
+
+    from qvalid.adapters.suggest import suggest_columns
+
+    if not log.is_file():
+        typer.echo(f"no trade log at {log}", err=True)
+        raise typer.Exit(code=2)
+    with log.open(newline="", encoding="utf-8") as handle:
+        header = next(csv.reader(handle), [])
+    if not header:
+        typer.echo(f"{log} has no header row", err=True)
+        raise typer.Exit(code=2)
+
+    found = suggest_columns(header)
+    typer.echo(f"# draft mapping for {log.name}, from its header. Read it before saving.")
+    typer.echo("# Every line is a guess about which column means what. See D016 and D060.")
+    typer.echo("source: generic")
+    typer.echo("fee_convention: MAGNITUDE   # positive cost. SIGNED if fees arrive negative")
+    typer.echo("pnl_convention: NET         # GROSS if the P&L column excludes costs. See D017")
+    typer.echo("pnl_source: COLUMN")
+    typer.echo('timestamp_format: "%Y-%m-%d %H:%M:%S"   # must match the export exactly')
+    typer.echo("timezone: America/New_York  # required when the stamps carry no offset")
+    typer.echo("columns:")
+    for name in (*REQUIRED_FIELDS, "pnl"):
+        if name in found.columns:
+            typer.echo(f"  {name}: {found.columns[name]}")
+        elif name in found.ambiguous:
+            options = found.ambiguous[name]
+            reason = (
+                f"matched {len(options)} columns, pick one: {', '.join(options)}"
+                if len(options) > 1
+                else f"another field also matched {options[0]}; decide which gets it"
+            )
+            typer.echo(f"  {name}:   # UNRESOLVED, {reason}")
+        else:
+            typer.echo(f"  {name}:   # NOT FOUND in the header")
+    typer.echo(f"tag_columns: [{', '.join(found.unused)}]   # columns nothing claimed")
+
+    if not found.is_complete:
+        typer.echo("", err=True)
+        typer.echo(
+            f"{len(found.missing) + len(found.ambiguous)} field(s) need a decision "
+            "before this mapping can be used.",
+            err=True,
+        )
 
 
 @app.command()

@@ -1852,6 +1852,61 @@ pessoa que a leu não achou a tecla. Mensagem que confundiu o primeiro leitor co
 
 ---
 
+## D060. O mapeamento de colunas é sugerido, e a sugestão recusa em vez de escolher
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Depois da interface, a parede entre a ferramenta e o primeiro uso real deixou de
+ser o caminho do arquivo e passou a ser o mapeamento: a pessoa precisa escrever três YAML à mão
+antes de qualquer número aparecer, e só o CSV dela sabe os nomes das colunas. D016 descartou
+"detecção automática de coluna por heurística de nome" pelo mesmo motivo de D004, fabricar o
+insumo que determina o resultado. Essa recusa continua correta para **escrever** o arquivo, e é
+larga demais para **propor** um rascunho, que é trabalho que a pessoa faria de qualquer jeito.
+
+**Decisão.** `adapters/suggest.py` lê apenas o cabeçalho e devolve `Suggestion`, com o que casou,
+o que faltou, o que ficou disputado e o que ninguém reclamou. `qvalid inspect log.csv` imprime o
+YAML resultante com as lacunas marcadas. Imprime e não grava: sob D016 o mapeamento é
+proveniência, e arquivo escrito por adivinhador é proveniência que ninguém escolheu.
+
+Casamento é exato sobre o nome normalizado, depois por prefixo, **nunca** por distância de
+edição. `exit_price` e `entry_price` distam três caracteres: um casador difuso os pareia, a
+identidade de P&L falha e a checagem de coerência culpa o multiplicador. Nada olha os dados, só
+o cabeçalho, porque inferir tipo a partir de valores esconde da pessoa a inferência que produziu
+o Sharpe dela.
+
+**Três coisas foram medidas, não supostas.**
+
+1. *Truncamento curto.* O prefixo casa nos dois sentidos, e o sentido "coluna é truncamento do
+   alias" é onde um nome curto casa com tudo, já que `entry_time` começa com `e`. Sobre três
+   cabeçalhos, contando campos que receberam coluna errada ou nenhuma: sem guarda 1 errado, um
+   `e` mudo vencendo um `EntryStamp` real; com guarda em quatro caracteres 2 errados, porque
+   rejeita `Sym` e `Ref`, que gente escreve; com guarda em três, 0. Fixado em três.
+2. *Colisão.* O primeiro rascunho atribuía na ordem de `REQUIRED_FIELDS`, então um `Price`
+   solitário ia para `entry_px` sem hesitar e só `exit_px` era marcado. Isso é exatamente a
+   escolha arbitrária que o módulo existe para não fazer, e a ordem de uma tupla do projeto não
+   é evidência sobre o CSV de ninguém. Coluna disputada deixa **todos** os pretendentes sem
+   resolver. A única assimetria admitida é casamento exato vencer casamento por prefixo, que é
+   evidência sobre inferência.
+3. *Acordo com um humano.* A sugestão para `trades_generic.csv` reproduz coluna a coluna o
+   `mapping_generic.yaml` que foi escrito à mão antes deste módulo existir, inclusive a
+   `tag_columns`. Num cabeçalho estilo MetaTrader, onde nenhum campo é soletrado como o projeto
+   soletra, resolve os dez e deixa `Swap` de fora: se financiamento overnight entra em `fees`
+   muda todo número líquido, e somar ou descartar em silêncio produz relatório igualmente
+   plausível.
+
+**Alternativas descartadas.** Casamento difuso por distância de edição, pelo motivo acima.
+Inferir tipo a partir dos valores, descartada porque coluna de números redondos passa por preço
+e coluna de datas passa por qualquer coisa, e a inferência ficaria invisível. Gravar o YAML
+sugerido, descartada por D016. Resolver colisão por ordem de campo, descartada por medição.
+
+**Consequência.** O caminho para o primeiro uso real cai de "escrever três YAML do zero" para
+"rodar um comando, ler o rascunho e decidir o que ele recusou decidir". A lista de apelidos não
+é exaustiva e não pode ser, o que é o argumento de D016 para o arquivo declarativo continuar
+existindo. Um cabeçalho que o módulo não conhece produz `NOT FOUND`, que é a resposta certa.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

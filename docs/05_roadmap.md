@@ -262,6 +262,20 @@ Caminho sugerido, em duas etapas:
 2. Se e somente se a etapa 1 for usada de fato por algumas semanas, aí sim uma aplicação
    servida por API, com fila para as simulações longas.
 
+### v1.6 A parede do mapeamento, entregue em 2026-08-05
+
+Com a interface pronta, o que separava a ferramenta do primeiro uso real deixou de ser o caminho
+do arquivo e passou a ser o mapeamento: três YAML escritos à mão antes de qualquer número.
+
+`qvalid inspect log.csv` lê o cabeçalho e imprime um rascunho, marcando o que não conseguiu
+resolver em vez de escolher. Imprime e não grava, porque sob D016 o mapeamento é proveniência.
+Ver D060, inclusive as três medições que fixaram o limiar de truncamento, a simetria da colisão
+e o acordo com o mapeamento que uma pessoa escreveu à mão.
+
+**Ainda não feito, e é o que falta:** rodar a ferramenta sobre uma exportação real da corretora
+do autor. Todo número verificado até aqui veio de fixture, de dado sintético ou do S&P 500 do
+FRED. Enquanto isso não acontecer, a etapa 2 abaixo não tem insumo para ser decidida.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

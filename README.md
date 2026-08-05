@@ -60,9 +60,23 @@ letter is the defect the tool exists to correct.
 
 ```bash
 pip install qvalid
+qvalid inspect trades.csv                   # a column mapping to start from
 qvalid validate trades.csv --config run.yaml --out report.html
 qvalid ui                                   # drag the log in, in a browser
 ```
+
+`inspect` reads the header of your export and prints a mapping, marking what it could not
+work out rather than choosing:
+
+```yaml
+columns:
+  entry_ts: Open Time
+  entry_px:   # UNRESOLVED, another field also matched Price; decide which gets it
+  exit_px:    # UNRESOLVED, another field also matched Price; decide which gets it
+```
+
+It prints and never saves. The mapping records which column was read as what, which is what
+lets somebody else reproduce a number, so the file has to be one you chose. See D060.
 
 Developing it rather than using it? Install from the checkout so the `qvalid` command is the
 code you are editing, and not a copy from PyPI under the same name:
