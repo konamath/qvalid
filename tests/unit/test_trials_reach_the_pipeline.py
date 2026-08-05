@@ -139,3 +139,87 @@ class TestTheMatrixIsRefusedWhenItCannotBeTrusted:
 
         result = run_validation(FIXTURES / "trades_long.csv", config, executed_at=FROZEN)
         assert entry(result.report, "deflated_sharpe").status is EvidenceStatus.FAILED
+
+
+class TestTheTrackRecordLengthReachesTheReport:
+    """``02`` section 3.2, which lived in ``core`` with tests and never printed.
+
+    Same class of gap as D052 and found by the same question: which of the
+    things ``02`` specifies can a person actually get out of the tool. Unlike
+    the deflation it needs no trial matrix, so it runs on every input.
+    """
+
+    def test_the_section_exists_at_all(self, run) -> None:
+        assert any(item.name == "track_record" for item in run.report.panel)
+
+    def test_a_negative_sharpe_gets_infinity_rather_than_a_large_number(self, run) -> None:
+        """The honest answer, and the one a finite number would hide.
+
+        No length of record makes a Sharpe below the benchmark significantly
+        above it. Printing ten thousand periods would invite the reader to plan
+        for a wait that does not end.
+        """
+        entry_ = entry(run.report, "track_record")
+        assert entry_.status is EvidenceStatus.FAILED
+        assert "infinite rather than long" in (entry_.reason or "")
+
+    def test_a_winning_strategy_gets_a_finite_length(self, tmp_path: Path) -> None:
+        """Otherwise the section would be failing for a reason other than the Sharpe."""
+        import numpy as np
+
+        from qvalid.contracts import Basis, Period, PeriodReturns
+        from qvalid.core.constants import WEEKDAYS_PER_YEAR
+        from qvalid.core.overfit import minimum_track_record_length
+
+        rng = np.random.default_rng(3)
+        values = np.ascontiguousarray(rng.normal(0.002, 0.01, 900))
+        day = 86_400 * 1_000_000_000
+        series = PeriodReturns(
+            values=values,
+            period_end_ns=1_600_000_000 * 1_000_000_000 + np.arange(900, dtype=np.int64) * day,
+            period=Period.DAILY,
+            periods_per_year=WEEKDAYS_PER_YEAR,
+            calendar_id="TEST",
+            basis=Basis.FIXED_INITIAL,
+            initial_capital=100_000.0,
+            n_active=900,
+        )
+        assert minimum_track_record_length(series).periods > 0.0
+
+    def test_a_higher_risk_free_rate_demands_a_longer_record(self) -> None:
+        """D055 again, one level down, and stated as a monotonicity.
+
+        Before this the function computed a raw Sharpe while the report's
+        headline was excess, so the required length ignored the alternative the
+        strategy is being compared against. Asserting an ordering rather than a
+        threshold means the test does not depend on a realised sample mean that
+        happens to sit either side of a chosen rate.
+        """
+        import numpy as np
+
+        from qvalid.contracts import Basis, Period, PeriodReturns
+        from qvalid.core.constants import WEEKDAYS_PER_YEAR
+        from qvalid.core.overfit import minimum_track_record_length
+
+        rng = np.random.default_rng(5)
+        values = np.ascontiguousarray(rng.normal(0.00015, 0.01, 1200))
+        day = 86_400 * 1_000_000_000
+        series = PeriodReturns(
+            values=values,
+            period_end_ns=1_600_000_000 * 1_000_000_000 + np.arange(1200, dtype=np.int64) * day,
+            period=Period.DAILY,
+            periods_per_year=WEEKDAYS_PER_YEAR,
+            calendar_id="TEST",
+            basis=Basis.FIXED_INITIAL,
+            initial_capital=100_000.0,
+            n_active=1200,
+        )
+        lengths = [
+            minimum_track_record_length(series, risk_free_rate=rate).periods
+            for rate in (0.0, 0.02, 0.05)
+        ]
+        assert lengths == sorted(lengths)
+        # Measured: 1664, 2547, 5981 periods. The bound is stated at two so the
+        # test pins an effect of consequence rather than a rounding difference,
+        # and leaves room for the sampling error of the realised mean.
+        assert lengths[-1] > lengths[0] * 2.0

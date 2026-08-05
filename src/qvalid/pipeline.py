@@ -42,6 +42,7 @@ from qvalid.core.gridding import select_grid, trade_returns
 from qvalid.core.metrics import period_metrics, trade_metrics
 from qvalid.core.overfit import (
     deflated_sharpe_ratio,
+    minimum_track_record_length,
     probability_of_backtest_overfitting,
 )
 from qvalid.core.regimes import attribute_by_regime, label_regimes
@@ -510,6 +511,32 @@ def run_validation(
     # lost the metrics, the risk section and the regimes over one bad file.
     # See D053.
     risk_free_per_period = sharpe.risk_free_rate_per_period
+
+    def _track_record() -> dict[str, Any]:
+        """``02`` section 3.2, which lived in ``core`` and never reached a report.
+
+        It needs no trial matrix, so unlike the deflation it can run on any
+        input, and it answers a question the reader has: how long a record with
+        these moments would have to be before this Sharpe is distinguishable
+        from the benchmark. When the observed Sharpe is below the benchmark the
+        honest answer is that no length suffices, and the section fails saying
+        exactly that rather than printing a large finite number.
+        """
+        length = minimum_track_record_length(
+            returns,
+            risk_free_rate=config.risk_free_rate,
+            target_probability=config.confidence_level,
+        )
+        return {
+            "periods": _number(length.periods),
+            "years": _number(length.years),
+            "observed_periods": returns.values.size,
+            "benchmark_sharpe": 0.0,
+            "target_probability": config.confidence_level,
+        }
+
+    panel.append(_section("track_record", _track_record))
+
     trials, trials_error = None, None
     try:
         trials = _load_trials(base, config, returns)

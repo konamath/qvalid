@@ -1689,6 +1689,45 @@ separou as duas.
 
 ---
 
+## D056. A convenção passa a estar no nome do parâmetro, e a seção 3.2 chega ao relatório
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Completa.** D055
+
+**Contexto.** D055 corrigiu a convenção no chamador e deixou o contrato mudo. Uma varredura das
+funções de `core` que recebem uma série de retornos mostrou três em `overfit.py` que calculam
+Sharpe internamente e não diziam sobre qual convenção: `probabilistic_sharpe_ratio`,
+`deflated_sharpe_ratio` e `minimum_track_record_length`. Quem chamasse `core` diretamente cairia
+no mesmo defeito que D055 acabara de corrigir uma camada acima.
+
+As demais são neutras à convenção e ficaram como estão: comprimento de bloco, bootstrap, regimes
+e curva de patrimônio ou não usam a média, ou usam retorno bruto porque é isso que descreve o
+patrimônio de verdade.
+
+**Decisão.** O parâmetro das duas que recebem array passa a se chamar `excess`, seguindo
+`mertens_sharpe_variance`, que já fazia certo. Nome de parâmetro é o lugar mais barato de
+declarar convenção, e é lido por quem chama sem abrir a documentação.
+`minimum_track_record_length` recebe `PeriodReturns`, então passa a aceitar `risk_free_rate` e
+subtrair internamente, exatamente como `sharpe_ratio`.
+
+**Segundo achado, da mesma varredura.** `minimum_track_record_length` **nunca era chamada pelo
+pipeline**. `02` seção 3.2 existia em `core`, com testes, e nunca chegava a um relatório. Mesma
+classe de D052, e encontrada pela mesma pergunta: quais das coisas que `02` especifica alguém
+consegue de fato tirar da ferramenta.
+
+Ela não precisa de matriz de tentativas, então roda em toda execução. Sobre os dois logs
+disponíveis a resposta é a mesma e é a certa: **falha dizendo que nenhum comprimento basta**,
+porque Sharpe abaixo do referencial não fica significativamente acima dele com mais dado do mesmo
+processo. Um número finito grande convidaria o leitor a planejar uma espera que não termina.
+
+**Consequência, e um erro meu.** O teste da monotonicidade foi escrito com o limiar antes da
+medição, e afirmava fator dez onde o medido é 1664, 2547 e 5981 períodos, ou seja 3,6. Terceira
+vez na sessão que escrevi um limiar antes de medir. A medição agora está anotada ao lado da
+asserção, que é onde ela serve para a próxima pessoa.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

@@ -57,7 +57,7 @@ from scipy.stats import norm
 
 from qvalid.contracts import FloatArray, PeriodReturns, TrialMatrix
 from qvalid.core.constants import DEFAULT_CONFIDENCE_LEVEL, EULER_MASCHERONI
-from qvalid.core.metrics import dispersion_is_negligible
+from qvalid.core.metrics import de_annualise_rate, dispersion_is_negligible
 from qvalid.core.resample import estimate_block_length, stationary_bootstrap_indices
 from qvalid.exceptions import InsufficientSampleError
 
@@ -163,13 +163,13 @@ class ProbabilisticSharpe:
 
 
 def probabilistic_sharpe_ratio(
-    values: FloatArray, *, benchmark_sharpe: float = 0.0
+    excess: FloatArray, *, benchmark_sharpe: float = 0.0
 ) -> ProbabilisticSharpe:
     """Probability that the true per period Sharpe exceeds ``benchmark_sharpe``.
 
     Parameters
     ----------
-    values : numpy.ndarray of float64
+    excess : numpy.ndarray of float64
         Per period returns, from a ``PeriodReturns`` or a column of a
         ``TrialMatrix``.
     benchmark_sharpe : float, optional
@@ -199,7 +199,7 @@ def probabilistic_sharpe_ratio(
     as the best of a thousand has a high probabilistic Sharpe by construction,
     which is exactly why :func:`deflated_sharpe_ratio` exists.
     """
-    n_obs, sharpe, skewness, kurtosis = _sample_moments(values)
+    n_obs, sharpe, skewness, kurtosis = _sample_moments(excess)
     denominator = math.sqrt(
         max(1.0 - skewness * sharpe + (kurtosis - 1.0) / 4.0 * sharpe * sharpe, 0.0)
     )
@@ -319,13 +319,13 @@ class DeflatedSharpe:
 
 
 def deflated_sharpe_ratio(
-    values: FloatArray, *, n_trials: int, trial_variance: float
+    excess: FloatArray, *, n_trials: int, trial_variance: float
 ) -> DeflatedSharpe:
     """Probability that the true Sharpe survives the selection that produced it.
 
     Parameters
     ----------
-    values : numpy.ndarray of float64
+    excess : numpy.ndarray of float64
         Per period returns of the selected configuration.
     n_trials : int
         Number of configurations tested. **Mandatory.** See D004: if the user
@@ -360,8 +360,8 @@ def deflated_sharpe_ratio(
     for a parameter sweep. See the note in :func:`expected_maximum_sharpe`.
     """
     threshold = expected_maximum_sharpe(n_trials, trial_variance)
-    deflated = probabilistic_sharpe_ratio(values, benchmark_sharpe=threshold)
-    undeflated = probabilistic_sharpe_ratio(values, benchmark_sharpe=0.0)
+    deflated = probabilistic_sharpe_ratio(excess, benchmark_sharpe=threshold)
+    undeflated = probabilistic_sharpe_ratio(excess, benchmark_sharpe=0.0)
     return DeflatedSharpe(
         probability=deflated.probability,
         expected_maximum=threshold,
@@ -400,6 +400,7 @@ class TrackRecordLength:
 def minimum_track_record_length(
     returns: PeriodReturns,
     *,
+    risk_free_rate: float = 0.0,
     benchmark_sharpe: float = 0.0,
     target_probability: float = DEFAULT_CONFIDENCE_LEVEL,
 ) -> TrackRecordLength:
@@ -410,6 +411,11 @@ def minimum_track_record_length(
     returns : PeriodReturns
         Taken as a contract rather than a bare array, because the answer has to
         be converted into calendar time and that needs ``periods_per_year``.
+    risk_free_rate : float, optional
+        Simple annual rate, subtracted here so the Sharpe this measures is the
+        **same quantity** the report's headline Sharpe is. Omitting it computed
+        a raw Sharpe and answered a different question under the same name,
+        which is the defect D055 found between three other sections.
     benchmark_sharpe : float, optional
         Per period threshold.
     target_probability : float, optional
@@ -439,7 +445,8 @@ def minimum_track_record_length(
     strategy will take to prove itself, since the moments are themselves
     estimated.
     """
-    values = np.asarray(returns.values, dtype=np.float64)
+    per_period = de_annualise_rate(risk_free_rate, returns.periods_per_year)
+    values = np.asarray(returns.values, dtype=np.float64) - per_period
     _, sharpe, skewness, kurtosis = _sample_moments(values)
     if sharpe <= benchmark_sharpe:
         raise InsufficientSampleError(
