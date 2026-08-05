@@ -20,6 +20,7 @@ someone else, and an argument typed into a shell is not.
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -35,10 +36,14 @@ from qvalid.adapters.calendars import weekdays_utc
 from qvalid.adapters.symbology import load_symbology
 from qvalid.adapters.timestamps import to_utc_nanos_from_pandas
 from qvalid.adapters.tradelog import load_mapping, read_trade_log_csv
-from qvalid.contracts import Basis, FloatArray, IntArray, Period
+from qvalid.contracts import Basis, FloatArray, IntArray, Period, PeriodReturns, TrialMatrix
 from qvalid.core.constants import DEFAULT_CONFIDENCE_LEVEL, PNL_RTOL
 from qvalid.core.gridding import select_grid, trade_returns
 from qvalid.core.metrics import period_metrics, trade_metrics
+from qvalid.core.overfit import (
+    deflated_sharpe_ratio,
+    probability_of_backtest_overfitting,
+)
 from qvalid.core.regimes import attribute_by_regime, label_regimes
 from qvalid.core.resample import resample_equity_paths
 from qvalid.core.risk import (
@@ -86,7 +91,16 @@ class RunConfig(BaseModel):
         Absolute equity level. ``None`` skips the section rather than guessing.
     n_trials : int or None
         Configurations tested. ``None`` means the deflated Sharpe does not run
-        and the report says so, per D004.
+        and the report says so, per D004. This is the size of the **search**,
+        which can exceed the number of columns kept in ``trials_path``: someone
+        who swept two hundred parameter sets and saved the best fifty searched
+        two hundred, and the deflation has to know that.
+    trials_path : str or None
+        CSV with one timestamp column and one return column per configuration
+        tested, on the same grid as the run. Supplies the dispersion across
+        trial Sharpe ratios that the deflation needs and the full matrix that
+        PBO needs. Without it the deflated Sharpe cannot run whatever
+        ``n_trials`` says. See D052.
     reference_path : str or None
         CSV with one column of reference returns per period, for the regime
         grid. ``None`` skips the regime section.
@@ -114,6 +128,7 @@ class RunConfig(BaseModel):
     forced_period: Period | None = None
     ruin_barrier: float | None = None
     n_trials: int | None = None
+    trials_path: str | None = None
     reference_path: str | None = None
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL
     verdict_requirements: tuple[str, ...] = DEFAULT_RANKING_REQUIREMENTS
@@ -488,7 +503,22 @@ def run_validation(
                 )
             )
 
-    if config.n_trials is None:
+    # An optional input that fails must not take the report down with it. The
+    # module docstring promises a typed failure becomes an Evidence entry, and
+    # ``_section`` delivers that for every computation; the **inputs** were
+    # outside it, so a trial matrix off the grid aborted the run and the person
+    # lost the metrics, the risk section and the regimes over one bad file.
+    # See D053.
+    trials, trials_error = None, None
+    try:
+        trials = _load_trials(base, config, returns)
+    except QvalError as exc:
+        trials_error = f"{type(exc).__name__}: {exc}"
+
+    if trials_error is not None:
+        for name in ("deflated_sharpe", "pbo"):
+            panel.append(Evidence(name=name, status=EvidenceStatus.FAILED, reason=trials_error))
+    elif config.n_trials is None:
         panel.append(
             Evidence(
                 name="deflated_sharpe",
@@ -498,19 +528,72 @@ def run_validation(
                 "input that determines the result, see D004",
             )
         )
-    else:
+    elif trials is None:
         panel.append(
             Evidence(
                 name="deflated_sharpe",
                 status=EvidenceStatus.NOT_REQUESTED,
                 reason="a trial count was declared but the matrix of all tested "
                 "configurations was not supplied; the deflation needs the dispersion "
-                "across trial Sharpe ratios, which a single log cannot provide",
+                "across trial Sharpe ratios, which a single log cannot provide. "
+                "Declare trials_path, see D052",
             )
         )
+    else:
+        declared, kept = config.n_trials, len(trials.config_ids)
+        incoherent = (
+            (
+                f"the configuration declares {declared} trials and the matrix carries "
+                f"{kept} columns; a search cannot be smaller than what it produced, so "
+                "one of the two numbers is wrong and the deflation used the larger",
+            )
+            if declared < kept
+            else ()
+        )
 
-    reference = _load_reference(base, config, np.asarray(returns.period_end_ns))
-    if reference is None:
+        def _deflated() -> dict[str, Any]:
+            sharpes = _trial_sharpe_ratios(trials)
+            estimate = deflated_sharpe_ratio(
+                np.asarray(returns.values, dtype=np.float64),
+                n_trials=max(declared, kept),
+                trial_variance=float(np.var(sharpes, ddof=1)),
+            )
+            return {
+                "probability": _number(estimate.probability),
+                "probability_against_zero": _number(estimate.psr_against_zero),
+                "expected_maximum": _number(estimate.expected_maximum),
+                "n_trials_declared": declared,
+                "n_trials_in_matrix": kept,
+                "trial_variance": _number(estimate.trial_variance),
+                "trial_sharpe_best": _number(float(sharpes.max())),
+                "trial_sharpe_median": _number(float(np.median(sharpes))),
+            }
+
+        panel.append(_section("deflated_sharpe", _deflated, warnings=incoherent))
+
+        def _pbo() -> dict[str, Any]:
+            result = probability_of_backtest_overfitting(trials)
+            return {
+                "probability": _number(result.probability),
+                "median_logit": _number(result.median_logit),
+                "logit_ceiling": _number(math.log(len(trials.config_ids))),
+                "n_combinations": result.n_combinations,
+                "n_splits": result.n_splits,
+            }
+
+        panel.append(_section("pbo", _pbo))
+
+    # Same reason as the trial matrix above, and the same defect since v0.6: a
+    # reference series misaligned by one session used to abort everything.
+    reference, reference_error = None, None
+    try:
+        reference = _load_reference(base, config, np.asarray(returns.period_end_ns))
+    except QvalError as exc:
+        reference_error = f"{type(exc).__name__}: {exc}"
+
+    if reference_error is not None:
+        panel.append(Evidence(name="regimes", status=EvidenceStatus.FAILED, reason=reference_error))
+    elif reference is None:
         panel.append(
             Evidence(
                 name="regimes",
@@ -681,6 +764,86 @@ def _ruin_payload(paths: Any, barrier: float, config: RunConfig) -> dict[str, An
         "never_hit_fraction": _number(passage.never_hit_fraction),
         "time_quantiles": {str(k): _number(v) for k, v in passage.quantiles.items()},
     }
+
+
+def _trial_sharpe_ratios(trials: TrialMatrix) -> FloatArray:
+    """Per period Sharpe of every column, which is what the deflation needs.
+
+    Per period and not annualised. ``02`` section 3 says so, and the docstring
+    of :func:`~qvalid.core.overfit.deflated_sharpe_ratio` says so: feeding an
+    annualised Sharpe here while the observed one is per period is wrong by a
+    factor of the square root of the periods per year, about sixteen on a daily
+    grid, and the answer still looks plausible.
+    """
+    values = np.asarray(trials.values, dtype=np.float64)
+    dispersion = values.std(axis=0, ddof=1)
+    return np.asarray(np.where(dispersion > 0.0, values.mean(axis=0) / dispersion, 0.0))
+
+
+def _load_trials(base: Path, config: RunConfig, returns: PeriodReturns) -> TrialMatrix | None:
+    """Read the matrix of every configuration tested, aligned to the grid by timestamp.
+
+    Until D052 there was no way to get one of these into a run. ``n_trials``
+    could be declared and the deflated Sharpe still did not run, because the
+    deflation needs the dispersion **across** trial Sharpe ratios and a single
+    trade log cannot supply it. The section that ``02`` calls the one that
+    separates this project from a spreadsheet of metrics was unreachable from
+    the tool's own entry point.
+
+    Expected format: a header row, the first column an ISO 8601 timezone aware
+    timestamp of the period close, and one further column per configuration
+    named by its identifier. Every configuration is a return series on the
+    **same grid** as the run, which is the precondition of ``02`` section 3 and
+    the reason :class:`~qvalid.contracts.TrialMatrix` declares the grid once for
+    the whole matrix rather than per column. See D024.
+
+    Alignment is by exact timestamp match, for the reason given in
+    :func:`_load_reference`: a positional read would hand the overfitting tests
+    a matrix that looks aligned and is not.
+
+    Raises
+    ------
+    SchemaError
+        Missing file, fewer than two configurations, or any grid period absent
+        from the file.
+    """
+    if config.trials_path is None:
+        return None
+    path = base / config.trials_path
+    if not path.is_file():
+        raise SchemaError(f"trial matrix not found at {path}")
+
+    frame = pd.read_csv(path)
+    if frame.shape[1] < 3:
+        raise SchemaError(
+            f"the trial matrix at {path} needs a timestamp column and at least two "
+            "configurations; the deflation measures dispersion across trials and one "
+            "column has none"
+        )
+    stamps = to_utc_nanos_from_pandas(pd.to_datetime(frame.iloc[:, 0], utc=False), source=str(path))
+    wanted = np.asarray(returns.period_end_ns, dtype=np.int64)
+    position = {int(stamp): index for index, stamp in enumerate(stamps)}
+    missing = [int(stamp) for stamp in wanted if int(stamp) not in position]
+    if missing:
+        raise SchemaError(
+            f"the trial matrix at {path} is missing {len(missing)} of the {wanted.size} "
+            f"grid periods, the first at {np.datetime64(missing[0], 'ns')}; every "
+            "configuration must be measured on the same grid as the run, see 02 section 3"
+        )
+    rows = np.array([position[int(stamp)] for stamp in wanted], dtype=np.int64)
+    values = np.ascontiguousarray(
+        frame.iloc[:, 1:].to_numpy(dtype=np.float64)[rows, :], dtype=np.float64
+    )
+    return TrialMatrix(
+        values=values,
+        config_ids=np.asarray([str(name) for name in frame.columns[1:]], dtype=np.str_),
+        period_end_ns=np.ascontiguousarray(wanted, dtype=np.int64),
+        period=returns.period,
+        periods_per_year=returns.periods_per_year,
+        calendar_id=returns.calendar_id,
+        basis=returns.basis,
+        initial_capital=returns.initial_capital,
+    )
 
 
 def _load_reference(base: Path, config: RunConfig, period_end_ns: IntArray) -> FloatArray | None:

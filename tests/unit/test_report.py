@@ -403,6 +403,28 @@ class TestPipeline:
         assert payload["observed"] is not None
 
 
+def _regime_failure(config: Path, pattern: str) -> bool:
+    """A bad reference series fails **the regime section**, not the whole run.
+
+    D053 changed this. These four cases used to raise out of
+    :func:`run_validation` and take the report with them, which contradicted
+    the promise in the module docstring of ``pipeline.py``: a typed failure
+    becomes an :class:`Evidence` entry so the reader still gets the metrics,
+    the risk section and everything else that did work.
+
+    The refusal itself is unchanged, and is still asserted here. What moved is
+    where the person meets it.
+    """
+    import re
+
+    report = run_validation(LOG, config, executed_at=STAMP).report
+    regimes = next(item for item in report.panel if item.name == "regimes")
+    assert regimes.status is EvidenceStatus.FAILED, regimes.status
+    assert re.search(pattern, regimes.reason or ""), regimes.reason
+    assert any(item.name == "calendar_metrics" and item.ran for item in report.panel)
+    return True
+
+
 class TestConfiguration:
     def test_the_fixture_config_loads(self) -> None:
         config = load_config(CONFIG)
@@ -451,8 +473,7 @@ class TestConfiguration:
             (tmp_path / name).write_bytes((FIXTURES / name).read_bytes())
         path = tmp_path / "cfg.yaml"
         path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-        with pytest.raises(SchemaError, match=r"missing \d+ of the \d+ grid periods"):
-            run_validation(LOG, path, executed_at=STAMP)
+        assert _regime_failure(path, r"missing \d+ of the \d+ grid periods")
 
     def test_a_reference_without_a_timestamp_column_is_refused(self, tmp_path: Path) -> None:
         payload = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
@@ -461,8 +482,7 @@ class TestConfiguration:
             (tmp_path / name).write_bytes((FIXTURES / name).read_bytes())
         path = tmp_path / "cfg.yaml"
         path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-        with pytest.raises(SchemaError, match="timestamp column"):
-            run_validation(LOG, path, executed_at=STAMP)
+        assert _regime_failure(path, "timestamp column")
 
 
 class TestCommandLine:
@@ -572,8 +592,7 @@ class TestRemainingBranches:
             (tmp_path / name).write_bytes((FIXTURES / name).read_bytes())
         path = tmp_path / "cfg.yaml"
         path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-        with pytest.raises(SchemaError, match="reference series not found"):
-            run_validation(LOG, path, executed_at=STAMP)
+        assert _regime_failure(path, "reference series not found")
 
     def test_naive_reference_timestamps_are_refused(self, tmp_path: Path) -> None:
         payload = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
@@ -585,8 +604,7 @@ class TestRemainingBranches:
         )
         path = tmp_path / "cfg.yaml"
         path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-        with pytest.raises(SchemaError, match="naive"):
-            run_validation(LOG, path, executed_at=STAMP)
+        assert _regime_failure(path, "naive")
 
     def test_a_suppressed_entry_renders_its_observed_and_threshold(self) -> None:
         report = minimal_report(

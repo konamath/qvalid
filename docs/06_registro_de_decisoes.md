@@ -1538,6 +1538,70 @@ primeira medição não era. Esse foi o sinal, não a plausibilidade do número.
 
 ---
 
+## D052. A matriz de tentativas passa a ter caminho até o pipeline
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** `02` seção 3 abre dizendo que é "a seção que separa o projeto de uma planilha de
+métricas". Desde a v0.9 ela era **inalcançável a partir da porta de entrada da ferramenta**.
+Declarar `n_trials` na configuração comprava uma segunda variante de `NOT_REQUESTED`, porque a
+deflação precisa da dispersão entre os Sharpes das tentativas e um log de trades sozinho não pode
+fornecer isso. O `else` do pipeline era beco sem saída.
+
+**Decisão.** `RunConfig` ganha `trials_path`: um CSV com uma coluna de timestamp e uma coluna de
+retorno por configuração testada, na mesma grade da execução. Alinhamento por casamento exato de
+timestamp, pela razão de D032. Com ele, `deflated_sharpe` e a nova seção `pbo` rodam, e o veredito
+deixa de ser inalcançável por construção.
+
+`n_trials` continua obrigatório e separado da largura da matriz, porque são coisas diferentes:
+quem varreu duzentos conjuntos e guardou os cinquenta melhores **buscou duzentos**, e é isso que a
+deflação precisa saber. Declarar menos que a largura da matriz é incoerente, e o relatório avisa
+em vez de escolher em silêncio.
+
+**Demonstração sobre as fixtures.** Vinte janelas de média móvel, varredura de verdade com as
+perdedoras guardadas, então o efeito de seleção é real e não suposto:
+
+    probabilidade contra zero    0,403
+    probabilidade deflacionada   0,020
+    PBO                          0,091 sobre 12870 combinações, teto do logit log(20) = 2,996
+    veredito                     equivalente certeza -0,0368
+
+Corrigir pela busca derruba a probabilidade de quatro em dez para uma em cinquenta. **Esse é o
+número que a ferramenta inteira existe para produzir**, e é a primeira vez que ele sai de uma
+execução do pipeline em vez de um teste unitário.
+
+**Consequência.** O veredito passa a ser alcançável, e continua honesto: sai negativo para o log
+de exemplo, que tem Sharpe -0,91 com intervalo contendo zero. Alcançável não é lisonjeiro.
+
+---
+
+## D053. Entrada opcional que falha não derruba o relatório
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Achado pelos testes que eu escrevi para D052, não por revisão. O docstring de
+`pipeline.py` promete desde a v0.6 que "uma falha tipada vira uma entrada de `Evidence` e não uma
+execução abortada", e `_section` cumpre isso para toda **computação**. As **entradas** estavam de
+fora: `_load_reference` e `_load_trials` são chamadas antes de qualquer seção ser montada, então
+uma série de referência desalinhada por uma sessão abortava tudo.
+
+A pessoa perdia as métricas, o risco, a distribuição de drawdown e a atribuição por regime porque
+um arquivo opcional estava errado. É exatamente o modo de falha que o desenho já tinha rejeitado.
+Existia desde a v0.6 e ficou de pé em quatro fechamentos de versão.
+
+**Decisão.** As duas cargas ficam em `try` e a falha vira `Evidence` com status FAILED na seção
+que dependia daquela entrada. A recusa em si não mudou, e continua fixada em teste. O que mudou é
+**onde** a pessoa encontra a recusa.
+
+**Consequência.** Quatro testes precisaram ser reescritos, e vale registrar por quê: eles fixavam
+o comportamento antigo como esperado. Um teste que codifica um defeito o protege, e a única
+defesa contra isso é que o teste seja conferido contra o que o desenho diz, não contra o que o
+código faz. Aqui o docstring do módulo já dizia a resposta certa, e ninguém tinha comparado.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
