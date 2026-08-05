@@ -1445,6 +1445,44 @@ e agora diz o que foi medido.
 
 ---
 
+## D050. Fim de linha é convenção de plataforma, não é dado
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** A matriz de CI passou em Ubuntu e **em macOS**, nas duas versões de Python, e
+falhou só no Windows, com uma diferença única:
+
+    .provenance.config_sha256: '2f915ab4...' != '5b7cfad2...'
+
+O git no Windows faz checkout de texto com CRLF, os bytes do YAML mudam, e `sha256_of` mudou
+junto. Um campo de proveniência cujo valor depende do checkout não consegue responder "rodamos a
+mesma configuração", que é a única pergunta para a qual ele existe. E não é peculiaridade de CI:
+quem editar uma configuração num editor do Windows e mandar para um colega no Linux cai nisso
+sem ter uma matriz para avisar.
+
+**Decisão.** `sha256_of` normaliza `\r\n` e `\r` solto para `\n` antes de somar. Um `.gitattributes`
+com `text=auto eol=lf` mantém os arquivos do próprio repositório consistentes, e marca CSV como
+binário para que uma fixture seja idêntica byte a byte em qualquer checkout. Duas defesas: a
+segunda cobre um arquivo que o usuário trouxe de fora.
+
+**Achado ao corrigir.** `trades_long.csv` já estava commitado **com CRLF**. É por isso que o
+Windows discordou da configuração e não do log: o log era CRLF nos dois lados, e o hash batia por
+acaso. Um teste passando pela razão errada, que só apareceu porque a correção mudou o hash do
+log e não o da configuração.
+
+**Consequência.** O hash do log muda com esta versão, então a referência foi regerada de
+propósito, que é o único uso honesto de `regenerate_expected.py`. Um teste novo fixa a cadeia
+inteira: bytes da fixture, regra de hash, e o valor no relatório commitado. E fixa também que
+normalizar não normaliza conteúdo: `seed: 20260804` e `seed: 20260805` continuam com hashes
+diferentes, e uma quebra de linha final continua contando, porque essa é conteúdo.
+
+Resposta a D049 completada pela mesma execução: macOS passa. A concordância a `1e-9` sobrevive à
+troca de glibc pela libm da Apple, então das três diferenças de plataforma possíveis, a que
+quebrou não era numérica.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

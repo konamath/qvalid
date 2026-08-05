@@ -207,9 +207,9 @@
     "config_sha256": "5b7cfad22c09f2f1649c198480399f3be69ce95c093615a04f22be496f2d449b",
     "executed_at": "2026-08-05T00:00:00Z",
     "input_name": "trades_long.csv",
-    "input_sha256": "1a54749468d817f629284ac972b10ac178a1da42b03fc98eb8feea04ed299c36",
+    "input_sha256": "6c115c75879363924fe935b5b6634f684854e65b8f88096c9ad57398231c7c74",
     "n_replications": 3000,
-    "package_version": "1.0.0",
+    "package_version": "1.0.1",
     "seed": 20260804
   },
   "warnings": []

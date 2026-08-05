@@ -1,0 +1,18 @@
+# Check every text file out with LF on every platform.
+#
+# Without this, git converts to CRLF on a Windows checkout, the bytes of the
+# fixtures change, and anything that reads them byte for byte disagrees with
+# the same file on Linux. The CI matrix found it through the provenance hash of
+# the run configuration. See D050.
+#
+# `sha256_of` normalises line endings anyway, so this is the second of two
+# defences rather than the only one: this keeps the repository's own files
+# consistent, and the normalisation covers a file the user brings from
+# somewhere else.
+* text=auto eol=lf
+
+# Report outputs are compared byte for byte; never let git touch them.
+*.json -text
+*.html -text
+*.tex -text
+*.csv -text

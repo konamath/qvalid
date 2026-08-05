@@ -120,8 +120,30 @@ class RunConfig(BaseModel):
 
 
 def sha256_of(path: str | Path) -> str:
-    """Hash a file's bytes. The hash, not the path, is what identifies the data."""
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    r"""Hash a text input, with line endings normalised. See D050.
+
+    The hash, not the path, is what identifies the data: two runs over files
+    with the same hash are runs over the same data whatever the paths say.
+
+    A line ending is a platform convention rather than data, so it is
+    normalised before hashing. Without this, the same configuration checked out
+    on Windows and on Linux produces two different values in the provenance,
+    and the field stops answering the one question it exists to answer. Found
+    by the CI matrix, where the Windows runner checks out CRLF.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        A text file: a trade log or a run configuration.
+
+    Returns
+    -------
+    str
+        Hex digest of the content with ``\r\n`` and lone ``\r`` reduced to
+        ``\n``.
+    """
+    raw = Path(path).read_bytes()
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")).hexdigest()
 
 
 def load_config(path: str | Path) -> RunConfig:
