@@ -119,7 +119,7 @@ class MonteCarloEstimate:
 
 
 def _require_paths(paths: EquityPaths, minimum: int = 1) -> FloatArray:
-    values = np.asarray(paths.values, dtype=np.float64)
+    values: FloatArray = np.asarray(paths.values, dtype=np.float64)
     if paths.n_paths < minimum:
         raise InsufficientSampleError(
             "too few simulated paths for this estimate",

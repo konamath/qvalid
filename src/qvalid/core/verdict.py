@@ -161,7 +161,11 @@ def probability_weight(probability: FloatArray | float, curvature: float) -> Flo
     feature: it is why a one per cent chance of ruin is not discounted at one
     per cent.
     """
-    values = np.clip(np.asarray(probability, dtype=np.float64), 0.0, 1.0)
+    # Annotated rather than inferred: the numpy stubs resolve this to ``Any``
+    # in some versions, and ``core`` is strict, where returning ``Any`` is an
+    # error. Local and CI resolve different numpy versions, so the annotation
+    # is what makes the verdict the same on both. See D047.
+    values: FloatArray = np.clip(np.asarray(probability, dtype=np.float64), 0.0, 1.0)
     if curvature == 1.0:
         return values
     powered = values**curvature

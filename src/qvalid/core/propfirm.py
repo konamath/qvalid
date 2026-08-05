@@ -286,7 +286,7 @@ def _require_daily_paths(paths: EquityPaths) -> FloatArray:
             f"a proprietary desk simulation requires period=DAILY, got {paths.period}; "
             "the rules are daily and a weekly grid cannot express a daily loss limit"
         )
-    values = np.asarray(paths.values, dtype=np.float64)
+    values: FloatArray = np.asarray(paths.values, dtype=np.float64)
     if paths.n_steps < 2:
         raise InsufficientSampleError(
             "the simulation needs at least one day of P&L",

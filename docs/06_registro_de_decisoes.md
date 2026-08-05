@@ -1321,6 +1321,42 @@ largura honesta e oito vezes menor.
 
 ---
 
+## D047. Em `core`, array devolvido é array anotado
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Com o mypy limpo localmente, a CI reprovou com **um** erro:
+
+    core/metrics.py:330: Returning Any from function declared to return "ndarray[...]"
+
+O erro não reproduz aqui. A causa é banal e vale registrar porque vai acontecer de novo: os
+stubs do numpy resolvem `array / int` ora para `ndarray`, ora para `Any`, dependendo da versão,
+e `qvalid.core.*` roda em modo estrito, onde devolver `Any` é erro. A CI resolve o numpy mais
+recente; este ambiente está preso em 2.2.6 porque o interpretador é 3.10.
+
+**Tentativa de medir, e por que falhou.** Antes de adivinhar, tentei baixar apenas os arquivos
+`.pyi` do numpy que a CI usa, para checar contra os stubs dela sem rodar aquele numpy. O índice
+alcançável daqui está congelado em 2.2.6 e as versões 2.5.x exigem 3.12 até para o sdist. O
+caminho de medição estava fechado, e isso está declarado em vez de disfarçado.
+
+**Decisão.** Função de `core` que devolve array anota a variável devolvida com o alias de
+`contracts`. A anotação não muda o comportamento e torna o veredito do verificador independente
+da versão dos stubs. Aplicado nos três pontos que uma varredura da árvore sintática identificou
+como dependentes de chamada com retorno ambíguo: `bartlett_long_run_covariance`,
+`probability_weight` e os dois `_require_paths`.
+
+**Alternativas descartadas.** Fixar a versão do numpy no grupo de desenvolvimento: tornaria o
+verificador reprodutível ao custo de checar contra um numpy que nenhum usuário terá, trocando
+sinal real por conveniência. Desligar `warn_return_any` em `core`: é exatamente a checagem que
+achou o bug de D046.
+
+**Consequência.** Duas idas e voltas com a CI por um erro de uma linha. Aceitável, e o registro
+existe para que a terceira não aconteça. Lição mais geral: um verificador cujo veredito depende
+de versão de stub não fixada vai discordar entre local e CI, e a autoridade é sempre a CI.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

@@ -323,7 +323,10 @@ def bartlett_long_run_covariance(matrix: FloatArray, bandwidth: int) -> FloatArr
             "long run covariance needs at least two observations", observed=n_obs, threshold=2
         )
     centred = np.ascontiguousarray(matrix - matrix.mean(axis=0), dtype=np.float64)
-    omega = _cross_moment_matrix(centred, centred) / n_obs
+    # Annotated rather than inferred: dividing an array by an int resolves to
+    # ``Any`` under some versions of the numpy stubs, and ``core`` is checked
+    # in strict mode, where returning ``Any`` is an error. See D047.
+    omega: FloatArray = _cross_moment_matrix(centred, centred) / n_obs
     for lag in range(1, bandwidth + 1):
         cross = _cross_moment_matrix(centred[lag:], centred[:-lag]) / n_obs
         omega += (1.0 - lag / (bandwidth + 1.0)) * (cross + cross.T)
