@@ -107,7 +107,7 @@ def render_latex(report: ValidationReport, *, standalone: bool = False) -> str:
     payload = report_to_dict(report)
     provenance = payload["provenance"]
     parts = [
-        "\\section*{qvalid validation report}\n",
+        "\\section*{Quantify validation report}\n",
         f"\\noindent\\texttt{{{_escape(provenance['input_name'])}}}, "
         f"sha256 \\texttt{{{_escape(provenance['input_sha256'][:16])}}}, "
         f"seed {provenance['seed']}, qvalid {_escape(provenance['package_version'])}, "

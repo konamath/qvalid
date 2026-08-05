@@ -1,7 +1,11 @@
-# qvalid
+# Quantify
 
 Takes a trade log. Decides whether its numbers survive correction for search, sampling error,
 serial dependence and regime. Writes a report that names every test it could not run.
+
+> **The tool is Quantify. The package is `qvalid`.** The name `quantify` was already taken on
+> PyPI by an unrelated project when this one was published, so the distribution and the import
+> carry the shorter name and the tool carries the one it was always called. See D045 and D058.
 
 ```bash
 uv run python examples/validate_full.py
@@ -57,6 +61,14 @@ letter is the defect the tool exists to correct.
 ```bash
 pip install qvalid
 qvalid validate trades.csv --config run.yaml --out report.html
+qvalid ui                                   # the same run, in a browser
+```
+
+Developing it rather than using it? Install from the checkout so the `qvalid` command is the
+code you are editing, and not a copy from PyPI under the same name:
+
+```bash
+pip install -e .
 ```
 
 Python 3.12 or newer. Importers for generic CSV, TradingView and NinjaTrader; a symbology map

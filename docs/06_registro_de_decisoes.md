@@ -1777,6 +1777,38 @@ fila que `05` prevê é problema da etapa 2 e não desta.
 
 ---
 
+## D058. A ferramenta chama Quantify, o pacote chama qvalid
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Complementa.** D045
+
+**Contexto.** A ferramenta sempre se chamou Quantify na cabeça de quem a construiu, e a pasta do
+projeto tem esse nome desde o primeiro dia. D045 descobriu que `quantify` está publicado no PyPI
+por um framework de computação quântica com release ativo, e escolheu `qvalid` porque era o que
+estava livre. A interface então abriu mostrando um nome que ninguém tinha escolhido.
+
+**Decisão.** Separar nome de produto de nome de distribuição, que são coisas diferentes e só
+coincidem por conveniência. **Quantify** em tudo que uma pessoa lê: título da interface,
+cabeçalho do relatório em HTML e em LaTeX, ajuda do comando, README. **`qvalid`** no que uma
+máquina lê: nome no PyPI, nome do módulo, imports.
+
+**Alternativas descartadas, e a medição que as descartou.** Verificados livres no PyPI:
+`quantifique`, `quantassay`, `quantaudit`, `quantcheck`, `quantproof`. Renomear para qualquer um
+custaria módulo, imports, workflows, reconfiguração do publicador confiável, e deixaria
+`qvalid` 1.0.0 a 1.4.0 órfãs no índice para sempre. O incômodo era o nome na tela, e trocar o
+pacote inteiro para resolver isso é desproporcional.
+
+`quantproof` foi descartado por motivo separado e que vale registrar: o argumento inteiro do
+projeto, e a seção 1.5 de `02` em particular, é que não se prova edge, só se deixa de rejeitar.
+Um nome que promete prova contradiz o produto na primeira palavra.
+
+**Consequência.** Duas palavras para uma coisa, o que confunde se não estiver escrito. Está: o
+README abre com a explicação, e é a primeira coisa que alguém lê. O custo real é esse parágrafo,
+e ele se paga na primeira vez que alguém procura `quantify` no PyPI e não acha.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

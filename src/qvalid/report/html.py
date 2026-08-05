@@ -103,7 +103,10 @@ def _panel_section(entry: Mapping[str, Any]) -> str:
 
 
 def render_html(
-    report: ValidationReport, *, charts: Sequence[str] = (), title: str = "qvalid validation report"
+    report: ValidationReport,
+    *,
+    charts: Sequence[str] = (),
+    title: str = "Quantify validation report",
 ) -> str:
     """Render a report as a single self contained HTML document.
 

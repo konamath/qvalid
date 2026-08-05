@@ -27,7 +27,7 @@ __all__ = ["app", "main"]
 
 app = typer.Typer(
     add_completion=False,
-    help="Statistical validation of trading strategies from a trade log.",
+    help="Quantify: statistical validation of trading strategies from a trade log.",
     no_args_is_help=True,
 )
 

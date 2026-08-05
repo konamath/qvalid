@@ -89,10 +89,10 @@ def form_page(values: Mapping[str, str] | None = None, error: str | None = None)
     )
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
-        "<title>qvalid</title><meta name='viewport' "
+        "<title>Quantify</title><meta name='viewport' "
         "content='width=device-width, initial-scale=1'>"
         f"<style>{_STYLE}</style></head><body><main>"
-        "<h1>qvalid</h1>"
+        "<h1>Quantify</h1>"
         "<p class='sub'>Point at a trade log and a run configuration. "
         "Every parameter that changes a number lives in the configuration.</p>"
         f"{warning}"

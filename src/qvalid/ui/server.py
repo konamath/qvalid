@@ -80,7 +80,7 @@ def serve(port: int = DEFAULT_PORT, *, open_browser: bool = True) -> None:  # pr
     """
     server = HTTPServer(("127.0.0.1", port), _Handler)
     address = f"http://127.0.0.1:{port}/"
-    print(f"qvalid interface on {address}\npress control C to stop")
+    print(f"Quantify interface on {address}\npress control C to stop")
     if open_browser:
         webbrowser.open(address)
     try:
