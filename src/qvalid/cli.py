@@ -86,6 +86,24 @@ def validate(
 
 
 @app.command()
+def ui(
+    port: int = typer.Option(8765, help="Port on the loopback interface."),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open a browser."),
+) -> None:
+    """Serve the interface on localhost. See D057.
+
+    The interface performs no calculation: it collects the two paths, calls the
+    same :func:`~qvalid.pipeline.run_validation` this command calls, and renders
+    the report the report layer already knows how to produce. ``05`` makes that
+    a permanent constraint, because logic here is debt that would make the
+    command line and the interface disagree.
+    """
+    from qvalid.ui.server import serve
+
+    serve(port, open_browser=open_browser)
+
+
+@app.command()
 def version() -> None:
     """Print the package version."""
     typer.echo(__version__)

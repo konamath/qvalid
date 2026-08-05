@@ -1728,6 +1728,55 @@ asserção, que é onde ela serve para a próxima pessoa.
 
 ---
 
+## D057. Interface local sem dependência nova, e o portão da v1.1 aberto à força
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Pedido de interface interativa. `05` põe isso na v1.1 com um portão explícito:
+nenhuma alteração de assinatura pública nas duas últimas versões.
+
+**O portão não foi cumprido, e seguimos assim mesmo.** Hoje mesmo mudaram `input_path` para
+`input_name`, entraram `trials_path` e a seção `track_record`, e `values` virou `excess` em duas
+funções de `overfit`. Registro isso em vez de reescrever o portão para caber no que fiz: a regra
+existia para evitar interface presa a uma API instável, e o risco que ela previa continua de pé.
+Mitigação: a interface toca **duas** funções públicas, `run_validation` e `render_html`, então a
+superfície exposta a instabilidade é a menor possível.
+
+**Decisão sobre a forma.** Servidor local em `http.server` da biblioteca padrão, **zero
+dependência nova**. FastAPI e uvicorn fariam o mesmo e seriam cobrados de todo mundo que instala
+o pacote pela API, que é exatamente o defeito de D044. Precedente direto: D030 escreveu SVG na
+mão em vez de trazer matplotlib.
+
+**Decisão sobre o desenho.** Duas consequências da restrição permanente de `05`, e são o projeto
+inteiro:
+
+A página de resultado **é** o relatório. `report/html.py` já produz documento completo e
+autocontido, então a interface não renderiza resultado nenhum: renderiza um formulário e devolve
+o que a camada de relatório produziu. Um segundo renderizador seria um segundo lugar onde um
+número pode divergir.
+
+E o que decide fica separado do socket, como `adapters/market.py` separa parsing de fetch.
+`ui/pages.py` recebe um mapa e devolve uma página, então a interface inteira é testável sem abrir
+porta, que é o que `04` exige. Só `ui/server.py` toca socket, e ele é curto o bastante para ler
+de uma vez.
+
+**Duas verificações estruturais**, porque a restrição de `05` é permanente e revisão não é
+mecanismo: um teste lê a árvore sintática e proíbe a interface de importar `qvalid.core`, e outro
+proíbe aritmética em `pages.py`. Formatar um número aqui seria o primeiro passo para a interface
+e o CLI discordarem.
+
+**Formulário com dois campos, e só.** Todo parâmetro que muda um número já vive no arquivo de
+configuração, cujo hash entra na proveniência. Oferecer sobrescrita aqui poria a mesma decisão em
+dois lugares, um deles não versionado e invisível ao relatório. Ver D016.
+
+**Escopo declarado.** Loopback e não todas as interfaces, porque a ferramenta lê qualquer caminho
+que receber e nada aqui autentica ninguém; um teste fixa isso. Thread única, então execução longa
+bloqueia o próximo clique. Medido: 1,2 segundo para o exemplo completo com 3000 caminhos, então a
+fila que `05` prevê é problema da etapa 2 e não desta.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

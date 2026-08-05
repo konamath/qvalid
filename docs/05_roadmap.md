@@ -251,8 +251,14 @@ Critério de entrada:
 
 Caminho sugerido, em duas etapas:
 
-1. Interface local para uso pessoal, priorizando velocidade de construção sobre acabamento.
-   Objetivo: parar de digitar comando para rodar validação rotineira.
+1. **Etapa 1 entregue em 2026-08-05.** `qvalid ui` sobe um servidor em localhost e abre o
+   navegador. Zero dependência nova, `http.server` da biblioteca padrão, e a página de resultado
+   é o próprio relatório que `report/html.py` já produzia. Ver D057.
+
+   **O critério de entrada não foi cumprido.** As duas últimas versões mudaram assinatura pública
+   várias vezes, e seguimos assim mesmo a pedido. Fica registrado como decisão consciente e não
+   como esquecimento: a regra existia para evitar interface presa a API instável, e a mitigação
+   foi expor apenas duas funções, `run_validation` e `render_html`.
 2. Se e somente se a etapa 1 for usada de fato por algumas semanas, aí sim uma aplicação
    servida por API, com fila para as simulações longas.
 
