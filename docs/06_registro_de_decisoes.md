@@ -2647,6 +2647,68 @@ no pipeline é código morto com teste verde**, e isso não aparece em cobertura
 
 ---
 
+## D074. O cache existia havia nove versões e ninguém podia usá lo
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** v2.3 do plano de `docs/08`, a camada de dados, que a análise apontou como o único
+componente do QuantPad que custa dinheiro de verdade. Antes de construir, a medição que as
+últimas quatro versões ensinaram a fazer:
+
+    linhas em adapters/cache.py + adapters/market.py   684
+    modulos de src fora deles que chamam load_series     0
+    modulos de src fora deles que chamam LocalCache      0
+    comandos qvalid que tocam o cache                    0
+
+`LocalCache` com manifesto, verificação por hash e contabilidade de custo, o protocolo `Fetcher`,
+o adaptador do FRED e os parsers foram construídos na v0.7 e **nunca foram chamados de fora dos
+próprios módulos.** Quinta ocorrência do mesmo padrão, depois da matriz de tentativas em D052, da
+seção 3.2 em D056, e da mesa proprietária mais o SPA em D073.
+
+Ou seja: a versão que ia "construir a camada de dados" descobriu que ela estava construída. O que
+faltava era um comando.
+
+**Decisão.** `qvalid fetch`. Traz um recorte, grava no cache, escreve no manifesto e imprime o que
+aconteceu. `--source file` lê um CSV local, o que é recurso de verdade para dado que já está em
+disco **e** o que torna o comando testável sem socket, que é exatamente o que D033 comprou ao pôr
+a rede atrás de um protocolo injetável. A chave nunca aparece: `QVALID_FRED_API_KEY` vem do
+ambiente e o adaptador recusa construir sem ela.
+
+Mais `MarketSeries.to_returns`, porque a grade de regimes de `02` seção 4 é construída sobre
+retornos e toda fonte gratuita de índice entrega nível. Retorno simples e não logarítmico: a
+rotulagem compara um retorno realizado contra quantis do próprio passado, e a transformação
+monótona entre os dois moveria todo quantil sem mudar ordenamento nenhum, que é diferença que
+ninguém consegue ler. A primeira observação é **descartada e não zerada**, pelo mesmo motivo que
+D072 recusou preencher a matriz fora do vão de uma variante: zero diria que o mercado não se moveu
+num dia em que ele não foi observado.
+
+**Um defeito meu, e é da classe que este projeto caça.** `LocalCache.downloads` é método e não
+propriedade, e eu comparei `cache.downloads` antes e depois, ou seja dois objetos de método
+ligados, que são sempre diferentes por identidade e nunca iguais por valor. Resultado: o comando
+imprimia **"already cached" no primeiro download**. Uma linha de status que mente sobre se houve
+rede é pior que nenhuma linha, porque é exatamente ela que a pessoa lê para decidir se está
+gastando. Dois testes fixam os dois lados.
+
+**O que a versão entrega de fato.** A seção de regimes deixa de exigir que alguém escreva o
+arquivo de referência à mão. Um teste percorre: construir a série sobre os fechamentos da própria
+grade, escrever, rodar, `regimes` sai `RAN`. E o irmão dele mostra o outro lado de D032: a mesma
+série deslocada um dia sai `FAILED`, porque alinhamento é por igualdade exata de instante e uma
+leitura posicional entregaria à rotulagem algo que **parece** alinhado.
+
+**Alternativas descartadas.** Reindexar a referência para a grade dentro do `fetch`, descartada
+porque esconderia justamente a diferença de calendário que D032 existe para expor. Retorno
+logarítmico, descartada pelo motivo acima. Zerar a primeira observação, descartada por D072.
+Implementar yfinance, cripto e Dukascopy agora, adiada: `--source file` já cobre qualquer coisa
+que se consiga baixar por fora, e cada fonte nova é um parser mais uma promessa de manutenção que
+só vale a pena quando um estudo concreto pedir.
+
+**Consequência.** `03` fica cumprida na prática pela primeira vez. Fica anotado que Databento e
+cadeia de opções continuam fora até que uma decisão registre o recorte concreto que justifica o
+gasto, com estimativa em GB no manifesto **antes** do download, conforme `03` já exigia.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

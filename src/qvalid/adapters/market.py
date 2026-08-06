@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol
@@ -36,7 +37,7 @@ import pandas as pd
 from qvalid.adapters.cache import CacheKey, Fetcher, LocalCache
 from qvalid.adapters.timestamps import to_utc_nanos_from_pandas
 from qvalid.contracts import FloatArray, IntArray
-from qvalid.exceptions import SchemaError
+from qvalid.exceptions import InsufficientSampleError, SchemaError
 
 __all__ = [
     "FRED_API_KEY_ENV",
@@ -102,6 +103,53 @@ class MarketSeries:
             )
         if self.timestamp_ns.size and not bool(np.all(np.diff(self.timestamp_ns) > 0)):
             raise SchemaError(f"timestamps of {self.series_id} must be strictly increasing")
+
+    def to_returns(self) -> MarketSeries:
+        """Convert a level series to simple returns, dropping the first observation.
+
+        The regime grid of ``02`` section 4 is built on returns, and every free
+        source that carries an index carries it as a level. Simple and not log
+        returns because the labelling compares a realised return against
+        quantiles of its own past, and the monotone transform between the two
+        would move every quantile without changing any ordering, which is a
+        difference nobody could read.
+
+        The first observation is dropped rather than set to zero. A zero would
+        say the market did not move on a day it was not observed, which is the
+        same error as filling a trial matrix outside a variant's own span.
+        """
+        if self.values.size < 2:
+            raise InsufficientSampleError(
+                f"a return series needs at least two levels, {self.series_id} has "
+                f"{self.values.size}",
+                observed=self.values.size,
+                threshold=2,
+            )
+        levels = np.asarray(self.values, dtype=np.float64)
+        if np.any(levels[:-1] == 0.0):
+            raise SchemaError(
+                f"{self.series_id} holds a zero level, so a simple return is undefined there"
+            )
+        return MarketSeries(
+            timestamp_ns=np.ascontiguousarray(self.timestamp_ns[1:]),
+            values=np.ascontiguousarray(levels[1:] / levels[:-1] - 1.0),
+            series_id=f"{self.series_id}:returns",
+            n_missing=self.n_missing,
+        )
+
+    def to_reference_csv(self) -> str:
+        """Serialise into the two column form :func:`~qvalid.pipeline._load_reference` reads.
+
+        Header, an ISO 8601 timezone aware period close, and a return. D032
+        makes the alignment exact by timestamp, so a source whose calendar
+        differs from the run's grid is refused there by name rather than
+        silently reindexed here.
+        """
+        lines = ["period_end,ret"]
+        for stamp, value in zip(self.timestamp_ns, self.values, strict=True):
+            moment = datetime.fromtimestamp(int(stamp) / 1e9, tz=UTC)
+            lines.append(f"{moment.isoformat()},{float(value)!r}")
+        return "\n".join(lines) + "\n"
 
     @property
     def n_observations(self) -> int:

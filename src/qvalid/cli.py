@@ -167,6 +167,94 @@ def trials(
 
 
 @app.command()
+def fetch(
+    symbol: str = typer.Argument(..., help="Series identifier at the source, e.g. SP500."),
+    start: str = typer.Option(..., "--start", help="First observation, ISO 8601 date."),
+    end: str = typer.Option(..., "--end", help="Last observation, ISO 8601 date."),
+    cache_dir: Path = typer.Option(..., "--cache", help="Where the immutable cache lives."),
+    source: str = typer.Option("fred", "--source", help="'fred', or 'file' to read a local CSV."),
+    from_file: Path | None = typer.Option(
+        None, "--file", help="With --source file: the CSV to take the slice from."
+    ),
+    as_returns: bool = typer.Option(
+        False, "--as-returns", help="Convert a level series to simple returns."
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Also write the reference CSV here."),
+) -> None:
+    """Bring a slice of external data into the cache. See D074.
+
+    The cache, the manifest, the hash check and the FRED adapter have existed
+    since v0.7 and nothing outside their own modules called them. This is the
+    command they were missing.
+
+    Every download passes through the cache, so a slice already present is not
+    fetched again, and the manifest records **every** request including the
+    ones that hit, because omitting the hits would make the log say a slice was
+    fetched once when it was used forty times. See D033.
+
+    The key never appears here. ``QVALID_FRED_API_KEY`` is read from the
+    environment and the adapter refuses to build without it, so a run that
+    cannot work fails before it starts working. See ``03``.
+    """
+    from qvalid.adapters.cache import CacheKey, LocalCache
+    from qvalid.adapters.market import (
+        FileFetcher,
+        FredFetcher,
+        load_series,
+        parse_fred_csv,
+        parse_two_column_csv,
+    )
+
+    if source not in ("fred", "file"):
+        typer.echo(f"unknown source {source!r}; use 'fred' or 'file'", err=True)
+        raise typer.Exit(code=2)
+    if source == "file" and (from_file is None or not from_file.is_file()):
+        typer.echo("--source file needs --file pointing at a readable CSV", err=True)
+        raise typer.Exit(code=2)
+    try:
+        cache = LocalCache(cache_dir)
+        key = CacheKey(source=source, symbol=symbol, start=start, end=end)
+        before = cache.downloads()
+        # A local file goes through the cache like anything else, so the
+        # manifest records where a number came from whether or not it crossed a
+        # network. Provenance is the point, not the socket.
+        fetcher = FredFetcher() if source == "fred" else FileFetcher(str(from_file))
+        parser = parse_fred_csv if source == "fred" else parse_two_column_csv
+        series = load_series(cache, key, fetcher, parser=parser)
+    except QvalError as exc:
+        typer.echo(f"{type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    downloads = cache.downloads()
+    hit = downloads == before
+    typer.echo(
+        f"{key.describe()}: {series.n_observations} observations, "
+        f"{'already cached' if hit else 'downloaded'}"
+    )
+    if series.n_missing:
+        typer.echo(f"{series.n_missing} observation(s) the source reported as missing")
+    typer.echo(
+        f"manifest {cache.manifest_path}, {downloads} download(s) and "
+        f"{cache.total_cost():.2f} of estimated cost so far"
+    )
+
+    if out is None:
+        return
+    try:
+        written = series.to_returns() if as_returns else series
+        out.write_text(written.to_reference_csv(), encoding="utf-8")
+    except QvalError as exc:
+        typer.echo(f"{type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"wrote {out}, {written.n_observations} rows")
+    typer.echo(
+        "Alignment with a run's grid is by exact timestamp and is checked there, per D032. "
+        "A source whose calendar differs from the run's is refused by name rather than "
+        "reindexed here."
+    )
+
+
+@app.command()
 def probe(
     log: Path = typer.Argument(..., help="CSV trade log."),
     mapping: Path = typer.Option(..., "--mapping", "-m", help="Column mapping, YAML."),

@@ -377,6 +377,12 @@ Mesa proprietária e SPA chegam ao painel, que vai de 11 para 14 seções. Ver D
 apareceu que `pbo` sumia do painel sem matriz em vez de aparecer como ausência declarada, que
 D031 chama de bug do pipeline.
 
+### v2.3 O cache ganha um comando, entregue em 2026-08-06
+
+`qvalid fetch`, e a descoberta de que a camada de dados já estava construída desde a v0.7 sem
+nenhum chamador. Quinta ocorrência do padrão. Ver D074. A seção de regimes deixa de exigir que
+alguém escreva o arquivo de referência à mão.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.
