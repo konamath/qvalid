@@ -58,3 +58,29 @@ open relatorio.html
 
 Esse é o relatório em que a probabilidade contra zero é 0,99931 e o Sharpe deflacionado é
 0,87707. Doze pontos de confiança que pertencem à busca e não à estratégia.
+
+---
+
+## `indice-de-referencia.csv` — **é inventado**
+
+782 níveis diários de 2022-01-03 a 2024-12-31, gerados por mim para o `--source file` ter o que
+exercitar. **Não é o S&P 500 nem nenhum outro índice.** Nenhuma conclusão sobre mercado nenhum sai
+daqui, e isso vale principalmente para os números bonitos: a volatilidade de 21,48 % e o drawdown
+de 43,98 % são propriedades do gerador de números aleatórios que o produziu. Ver D076.
+
+Ele serve para dois usos. O primeiro é ser a série de referência que faz a seção de regimes rodar,
+já que ela é alinhada por carimbo exato e recusa fonte em calendário diferente, conforme D032. O
+segundo é este:
+
+```bash
+qvalid fetch REF --source file --file demo/indice-de-referencia.csv \
+  --start 2022-01-03 --end 2024-12-31 --cache ~/.qvalid/cache
+
+qvalid describe REF --source file \
+  --start 2022-01-03 --end 2024-12-31 --cache ~/.qvalid/cache
+```
+
+O `describe` existe porque um agente ligado ao MCP, perguntado pela volatilidade desta série,
+improvisou a conta com `statistics.stdev` e um 252 chumbado. A taxa aqui sai do espaçamento
+observado, 260,99, e as três primeiras linhas da saída dizem qual grid, qual taxa, de onde a taxa
+veio e sobre que base a curva foi montada. Sem isso nada abaixo é reproduzível.

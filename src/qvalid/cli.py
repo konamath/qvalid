@@ -12,7 +12,9 @@ Usage follows ``01``::
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -262,6 +264,119 @@ def fetch(
         "A source whose calendar differs from the run's is refused by name rather than "
         "reindexed here."
     )
+
+
+@app.command()
+def describe(
+    symbol: str = typer.Argument(..., help="Series identifier as it was cached, e.g. SP500."),
+    start: str = typer.Option(..., "--start", help="First observation of the cached slice."),
+    end: str = typer.Option(..., "--end", help="Last observation of the cached slice."),
+    cache_dir: Path = typer.Option(..., "--cache", help="Where the cache lives."),
+    source: str = typer.Option("fred", "--source", help="The source the slice was cached under."),
+    risk_free_rate: float = typer.Option(
+        0.0, "--risk-free-rate", help="Simple annual rate. Printed back."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the payload instead of the table."),
+) -> None:
+    """Describe a cached series with this engine's own statistics. See D076.
+
+    Everything printed here comes from ``core``. That is the point of the
+    command: the numbers a person or an agent would otherwise improvise are the
+    ones this project spent ``02`` specifying, and improvising them produces an
+    answer that looks the same and is not.
+
+    Three lines of the output exist to make the rest reproducible. The rate is
+    taken from the observed spacing rather than assumed to be 252, and the
+    identifier beside it says whether it was observed or nominal. The basis says
+    how the equity path was built, which changes the drawdown. The Sharpe ratio
+    is printed with its interval and never without it, per ``02`` section 1.3.
+
+    A series whose spacing matches no grid, or which holds a hole wide enough
+    that annualising it would divide by a span the observations do not cover, is
+    refused here by name rather than described.
+    """
+    from qvalid.adapters.cache import CacheKey, LocalCache
+    from qvalid.adapters.market import parse_two_column_csv
+    from qvalid.describe import describe_period_metrics
+
+    try:
+        cache = LocalCache(cache_dir)
+        key = CacheKey(source=source, symbol=symbol, start=start, end=end)
+        if not cache.contains(key):
+            typer.echo(
+                f"{key.describe()} is not in the cache; `qvalid fetch` it first, "
+                "which is what records where it came from",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        series = parse_two_column_csv(cache.raw_path(key).read_bytes(), key.symbol)
+        payload = describe_period_metrics(series, risk_free_rate=risk_free_rate)
+    except QvalError as exc:
+        typer.echo(f"{type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    for line in _describe_lines(payload, key.describe()):
+        typer.echo(line)
+
+
+def _describe_lines(payload: dict[str, Any], described: str) -> list[str]:
+    """Format the payload as a table. Kept out of the command so it is testable.
+
+    Percentages are printed for the quantities that are ratios of money and
+    plain numbers for the ones that are ratios of a return to a risk, because
+    reading a Sharpe ratio as a percentage is a mistake that a percent sign
+    invites.
+    """
+    grid = payload["grid"]
+    sharpe = payload["sharpe"]
+    drawdown = payload["drawdown"]
+
+    def pct(value: float | None) -> str:
+        return "undefined" if value is None else f"{value:>8.2%}"
+
+    def num(value: float | None) -> str:
+        return "undefined" if value is None else f"{value:>8.3f}"
+
+    lines = [
+        f"{described}",
+        f"{payload['first_observation'][:10]} to {payload['last_observation'][:10]}, "
+        f"{payload['n_levels']} levels, {payload['n_missing']} missing at the source",
+        f"{grid['n_periods']} {grid['period']} periods over {grid['years']:.2f} years",
+        f"{grid['periods_per_year']:.2f} periods per year, from {grid['calendar_id']}",
+        f"basis {payload['basis']}, initial level {payload['initial_level']:.4f}",
+        "",
+        f"  cumulative return     {pct(payload['cumulative_return'])}",
+        f"  CAGR                  {pct(payload['cagr'])}",
+        f"  volatility annualised {pct(payload['volatility_annualised'])}",
+        f"  Sortino annualised    {num(payload['sortino_annualised'])}",
+        f"  Kelly fraction        {num(payload['kelly_fraction'])}",
+    ]
+    if sharpe["annualised_sqrt_q"] is None:
+        lines.append("  Sharpe                undefined, see the warnings below")
+    else:
+        lines += [
+            f"  Sharpe sqrt(q)        {num(sharpe['annualised_sqrt_q'])}"
+            f"   {sharpe['confidence_level']:.0%} interval "
+            f"[{sharpe['ci_low']:.3f}, {sharpe['ci_high']:.3f}]",
+            f"  Sharpe HAC            {num(sharpe['annualised_hac'])}"
+            f"   Bartlett bandwidth {sharpe['bandwidth']}",
+        ]
+    if drawdown is None:
+        lines.append("  max drawdown          undefined, see the warnings below")
+    else:
+        lines += [
+            f"  max drawdown          {pct(drawdown['max_drawdown'])}"
+            f"   over {drawdown['max_drawdown_duration']} periods, "
+            f"{'recovered' if drawdown['recovered'] else 'not recovered'}",
+            f"  time underwater       {pct(drawdown['time_underwater'])}",
+        ]
+    lines.append(f"  risk free rate        {pct(sharpe['risk_free_rate_annual'])}")
+    for warning in payload["warnings"]:
+        lines += ["", f"! {warning}"]
+    return lines
 
 
 @app.command()

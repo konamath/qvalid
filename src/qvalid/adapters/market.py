@@ -24,11 +24,13 @@ https://fred.stlouisfed.org/docs/api/fred/
 from __future__ import annotations
 
 import os
+from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Protocol
+from typing import Final, Protocol
 from urllib.parse import urlencode
 
 import numpy as np
@@ -36,16 +38,29 @@ import pandas as pd
 
 from qvalid.adapters.cache import CacheKey, Fetcher, LocalCache
 from qvalid.adapters.timestamps import to_utc_nanos_from_pandas
-from qvalid.contracts import FloatArray, IntArray
+from qvalid.contracts import (
+    NANOS_PER_SECOND,
+    Basis,
+    FloatArray,
+    IntArray,
+    Period,
+    PeriodReturns,
+    TradingCalendar,
+)
+from qvalid.core.constants import MONTHS_PER_YEAR, WEEKS_PER_YEAR
 from qvalid.exceptions import InsufficientSampleError, SchemaError
 
 __all__ = [
     "FRED_API_KEY_ENV",
     "FRED_BASE_URL",
+    "GAP_BANDS",
+    "MAX_GAP_EXCESS_FRACTION",
     "FileFetcher",
     "FredFetcher",
     "MarketSeries",
+    "ObservedGrid",
     "load_series",
+    "observed_grid",
     "parse_fred_csv",
     "parse_two_column_csv",
 ]
@@ -56,6 +71,58 @@ FRED_API_KEY_ENV = "QVALID_FRED_API_KEY"
 
 _FRED_MISSING = "."
 """FRED writes a missing observation as a single dot rather than as an empty field."""
+
+_NANOS_PER_DAY: Final[int] = 86_400 * NANOS_PER_SECOND
+
+GAP_BANDS: Final[Mapping[Period, tuple[int, int]]] = {
+    Period.DAILY: (1, 4),
+    Period.WEEKLY: (5, 9),
+    Period.MONTHLY: (26, 35),
+}
+"""Calendar day spacing that is ordinary for each rung of the grid ladder.
+
+Measured rather than assumed. A weekday series shows gaps of one and three;
+adding the nine recurring US market holidays introduces twos and fours and
+nothing wider. A weekly series on a fixed weekday shows sevens, and a month end
+series shows twenty eight to thirty three.
+
+The bands are the **ordinary** range, not the admissible one. A gap outside them
+is not by itself a refusal, because a real exchange does close for a hurricane;
+what a gap outside them costs is counted by
+:data:`MAX_GAP_EXCESS_FRACTION`, which is a budget over the whole sample.
+"""
+
+MAX_GAP_EXCESS_FRACTION: Final[float] = 0.02
+"""Share of the calendar span allowed to sit inside abnormally long gaps.
+
+Defined as ``sum(max(0, gap - band_top)) / span``, so a series with no gap
+outside its band scores exactly zero.
+
+**The obvious statistic does not work, and measuring is what showed it.** The
+first version counted the fraction of gaps falling inside the band, and a daily
+series with a six month hole scored 0.9984 on it, higher than a legitimate month
+end series at 0.9722. One enormous gap among six hundred small ones is invisible
+to a count of gaps, and one enormous gap is exactly the thing that breaks the
+annualisation: :meth:`~qvalid.contracts.TradingCalendar.sessions_per_year`
+divides by the total span, so a hole understates the rate and every number
+scaled by its root comes out wrong.
+
+Measured over three years of daily stamps, the separation is clean::
+
+    dias uteis puros                      0.00%
+    calendario de bolsa com feriados      0.00%
+    bolsa mais fechamento de uma semana   0.55%
+    bolsa mais fechamento de duas semanas 1.19%
+    -------------------------------------------
+    diario com buraco de um mes           2.74%
+    diario com buraco de dois meses       5.39%
+    diario com buraco de seis meses      16.82%
+    diario emendado com mensal           58.14%
+
+Two percent sits above every closure a real venue has had, the longest in the
+modern history of the New York Stock Exchange being four sessions in September
+2001, and below the mildest hole that is genuinely missing data.
+"""
 
 
 class Parser(Protocol):
@@ -151,10 +218,184 @@ class MarketSeries:
             lines.append(f"{moment.isoformat()},{float(value)!r}")
         return "\n".join(lines) + "\n"
 
+    def to_period_returns(self) -> PeriodReturns:
+        """Declare this level series as a return series on a calendar grid.
+
+        Returns
+        -------
+        PeriodReturns
+            The only type from which ``core`` produces an annualised number.
+
+        Raises
+        ------
+        SchemaError
+            Spacing that matches no rung of the ladder, spacing too irregular to
+            annualise, or a level that is not strictly positive.
+
+        Notes
+        -----
+        **This is a declaration made at a boundary, which is where the contract
+        says declarations belong.** ``PeriodReturns.periods_per_year`` is
+        documented as declared at the boundary and never inferred by the engine,
+        and this method is that boundary for a series that arrived from a data
+        source rather than from a trade log. What makes the declaration honest
+        is that it is derived from the observation stamps by
+        :func:`observed_grid` and refuses when the stamps do not support it,
+        rather than falling back to a number like 252.
+
+        **The rate matches what the engine would use for the same grid.** Daily
+        takes the observed session rate from a calendar built out of the series'
+        own stamps; weekly and monthly take the nominal constants. That is
+        exactly ``core.gridding._periods_per_year``, and it has to be, because a
+        series described here and then used as the reference of a run must
+        annualise the same way in both places.
+
+        **The basis is not a choice.** Simple returns on a level series compose
+        multiplicatively and reconstruct the level exactly, so the series is
+        ``CURRENT_EQUITY`` with the first level as its initial capital. Declaring
+        ``FIXED_INITIAL`` would build the equity path with ``cumsum`` and change
+        the drawdown without changing anything visible. A test asserts the
+        reconstruction rather than the label.
+
+        Every period of a market series carries an observation by construction,
+        so ``n_active`` equals the period count and the dilution warning of
+        ``02`` section 1.6 correctly stays silent.
+        """
+        levels = np.asarray(self.values, dtype=np.float64)
+        if bool((levels <= 0.0).any()):
+            raise SchemaError(
+                f"{self.series_id} holds a level at or below zero, so it is not an equity "
+                "path; the relative drawdown has no meaning below zero and the simple "
+                "return through it has no sign anyone can read"
+            )
+        grid = observed_grid(self)
+        returns = self.to_returns()
+        return PeriodReturns(
+            values=returns.values,
+            period_end_ns=returns.timestamp_ns,
+            period=grid.period,
+            periods_per_year=grid.periods_per_year,
+            calendar_id=grid.calendar_id,
+            basis=Basis.CURRENT_EQUITY,
+            initial_capital=float(levels[0]),
+            n_active=returns.n_observations,
+        )
+
     @property
     def n_observations(self) -> int:
         """Number of usable observations."""
         return int(self.values.size)
+
+
+@dataclass(frozen=True, slots=True)
+class ObservedGrid:
+    """The calendar grid a series' own timestamps support, and the evidence for it.
+
+    Attributes
+    ----------
+    period : Period
+    periods_per_year : float
+    calendar_id : str
+        ``OBSERVED:<id>`` when the rate came from the stamps, ``NOMINAL:<period>``
+        when it came from a constant. Which one produced the number is in the
+        report, so neither is a silent default.
+    modal_gap_days : int
+        Most frequent spacing between consecutive observations.
+    max_gap_days : int
+    gap_excess_fraction : float
+        See :data:`MAX_GAP_EXCESS_FRACTION`. Carried even when it passes, so a
+        reader can see how close to the budget the series ran.
+    """
+
+    period: Period
+    periods_per_year: float
+    calendar_id: str
+    modal_gap_days: int
+    max_gap_days: int
+    gap_excess_fraction: float
+
+
+def observed_grid(series: MarketSeries) -> ObservedGrid:
+    """Read the grid off a level series' timestamps, or refuse to.
+
+    Parameters
+    ----------
+    series : MarketSeries
+        Levels, not returns. The rate is derived from the level stamps because a
+        return series of ``N`` observations covers the span of ``N + 1`` levels,
+        and :meth:`~qvalid.contracts.TradingCalendar.sessions_per_year` divides
+        by ``n - 1`` for exactly that reason.
+
+    Returns
+    -------
+    ObservedGrid
+
+    Raises
+    ------
+    InsufficientSampleError
+        Fewer than three observations, which give at most one gap and therefore
+        no evidence about regularity at all.
+    SchemaError
+        A modal spacing matching no band, or an excess above
+        :data:`MAX_GAP_EXCESS_FRACTION`.
+
+    Notes
+    -----
+    Spacing is counted in whole UTC days rather than in nanoseconds, so a venue
+    whose closing time drifts across a daylight saving change still reads as
+    daily. The consequence is that an intraday series produces gaps of zero,
+    matches no band, and is refused by name, which is correct: nothing here
+    knows how many bars a day of that series holds.
+    """
+    stamps = np.asarray(series.timestamp_ns, dtype=np.int64)
+    if stamps.size < 3:
+        raise InsufficientSampleError(
+            f"{series.series_id} has {stamps.size} observations; a grid cannot be read off "
+            "fewer than three, because two give a single gap and no evidence of regularity",
+            observed=int(stamps.size),
+            threshold=3,
+        )
+    gaps = np.diff(stamps // _NANOS_PER_DAY)
+    modal = int(Counter(int(gap) for gap in gaps).most_common(1)[0][0])
+    period = next((rung for rung, (lo, hi) in GAP_BANDS.items() if lo <= modal <= hi), None)
+    if period is None:
+        raise SchemaError(
+            f"{series.series_id} is spaced {modal} calendar days apart, which matches no "
+            f"grid this understands. Known spacings: "
+            + ", ".join(f"{rung.value} {lo} to {hi}" for rung, (lo, hi) in GAP_BANDS.items())
+            + ". A spacing of zero means several observations share a UTC day, and nothing "
+            "here knows how many bars a day of that series holds"
+        )
+
+    top = GAP_BANDS[period][1]
+    span_days = int(stamps[-1] // _NANOS_PER_DAY - stamps[0] // _NANOS_PER_DAY)
+    excess = float(np.maximum(gaps - top, 0).sum()) / span_days
+    if excess > MAX_GAP_EXCESS_FRACTION:
+        raise SchemaError(
+            f"{series.series_id} reads as {period.value} but {excess:.2%} of its span sits "
+            f"inside gaps wider than {top} days, above the {MAX_GAP_EXCESS_FRACTION:.0%} "
+            f"budget, the widest being {int(gaps.max())} days. Annualising it would divide "
+            "by a span the observations do not cover, and the drawdown would step over "
+            "whatever happened in the hole"
+        )
+
+    if period is Period.DAILY:
+        calendar = TradingCalendar(
+            calendar_id=f"OBSERVED:{series.series_id}", session_close_ns=stamps
+        )
+        rate = calendar.sessions_per_year()
+        calendar_id = calendar.calendar_id
+    else:
+        rate = WEEKS_PER_YEAR if period is Period.WEEKLY else MONTHS_PER_YEAR
+        calendar_id = f"NOMINAL:{period.value}"
+    return ObservedGrid(
+        period=period,
+        periods_per_year=rate,
+        calendar_id=calendar_id,
+        modal_gap_days=modal,
+        max_gap_days=int(gaps.max()),
+        gap_excess_fraction=excess,
+    )
 
 
 class FredFetcher:

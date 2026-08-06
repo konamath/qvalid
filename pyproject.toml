@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qvalid"
-version = "2.4.0"
+version = "2.4.1"
 description = "Statistical validation of trading strategies from a trade log"
 readme = "README.md"
 requires-python = ">=3.12"

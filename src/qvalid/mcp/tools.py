@@ -12,6 +12,15 @@ cost. A tool that wrote to the cache would put data there with no such line, and
 the manifest would then read as complete while being wrong, which D033 calls
 worse than no manifest at all.
 
+**Reading is not the same as offering nothing to compute.** ``describe_series``
+runs ``core``'s own statistics over a cached slice and writes nothing, so the
+provenance argument above is untouched. It exists because the first version of
+this module did not have it: asked for the volatility of a cached series, an
+agent read the array, found no tool that would compute anything with it, and
+improvised the mathematics in a scratch file with a hard coded 252. A boundary
+that exports data and no calculation does not prevent the calculation, it only
+stops being able to see it.
+
 Every tool returns plain data. Nothing here formats prose for a model to repeat:
 the agent gets the numbers and the manifest fields, and what it says about them
 is its own business.
@@ -24,7 +33,8 @@ from pathlib import Path
 from typing import Any
 
 from qvalid.adapters.cache import CacheKey, LocalCache
-from qvalid.adapters.market import parse_two_column_csv
+from qvalid.adapters.market import MarketSeries, parse_two_column_csv
+from qvalid.describe import describe_period_metrics
 from qvalid.exceptions import SchemaError
 
 __all__ = ["TOOLS", "ToolSpec", "call_tool", "tool_catalogue"]
@@ -86,8 +96,8 @@ def _coverage(cache: LocalCache, _: Mapping[str, Any]) -> list[dict[str, Any]]:
     return list(seen.values())
 
 
-def _read_series(cache: LocalCache, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    """Read one cached slice, as levels or as simple returns.
+def _levels(cache: LocalCache, arguments: Mapping[str, Any]) -> tuple[CacheKey, MarketSeries]:
+    """Load one cached slice as it was stored, with the key that names it.
 
     The slice is identified the way it was stored, by source, symbol and the two
     dates, so a caller cannot ask for a window that was never fetched and get a
@@ -105,14 +115,21 @@ def _read_series(cache: LocalCache, arguments: Mapping[str, Any]) -> dict[str, A
             f"{key.describe()} is not in the cache; fetch it with `qvalid fetch` first, "
             "which records where it came from"
         )
-    series = parse_two_column_csv(cache.raw_path(key).read_bytes(), key.symbol)
+    return key, parse_two_column_csv(cache.raw_path(key).read_bytes(), key.symbol)
+
+
+def _read_series(cache: LocalCache, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Read one cached slice, as levels or as simple returns."""
+    key, series = _levels(cache, arguments)
     if arguments.get("as_returns"):
         series = series.to_returns()
     if series.n_observations > MAX_ROWS:
         raise SchemaError(
             f"{key.describe()} holds {series.n_observations} rows, above the {MAX_ROWS} this "
             "tool returns. Write it to a file with `qvalid fetch --out` and read that: a "
-            "series summarised by a model is not a series that was read"
+            "series summarised by a model is not a series that was read. "
+            "`describe_series` has no such cap, because it returns statistics this "
+            "engine computed rather than an array something else has to summarise"
         )
     return {
         "series_id": series.series_id,
@@ -121,6 +138,27 @@ def _read_series(cache: LocalCache, arguments: Mapping[str, Any]) -> dict[str, A
         "timestamp_ns": [int(value) for value in series.timestamp_ns],
         "values": [float(value) for value in series.values],
     }
+
+
+def _describe_series(cache: LocalCache, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Describe one cached slice with the statistics ``core`` defines.
+
+    This exists because of what happened without it. Asked for the volatility
+    and the drawdown of a cached series, an agent read the numbers through
+    ``read_series``, found nothing here that would compute anything, and fell
+    back to ``statistics.stdev`` and a hard coded 252 in a scratch file. The
+    drawdown it produced was right; the volatility was wrong by the ratio
+    between 252 and the rate the series actually shows, and nothing in the
+    answer said which rate had been used or on what basis the equity path had
+    been built.
+
+    A tool that hands over an array and no way to use it is a tool that
+    delegates the mathematics to whatever the caller improvises.
+    """
+    _, series = _levels(cache, arguments)
+    return describe_period_metrics(
+        series, risk_free_rate=float(arguments.get("risk_free_rate", 0.0))
+    )
 
 
 def _verify_cache(cache: LocalCache, _: Mapping[str, Any]) -> dict[str, Any]:
@@ -165,6 +203,32 @@ TOOLS: tuple[ToolSpec, ...] = (
             "additionalProperties": False,
         },
         _read_series,
+    ),
+    ToolSpec(
+        "describe_series",
+        "Annualised volatility, maximum drawdown, CAGR, Sharpe with its confidence "
+        "interval, Sortino and Kelly for one cached slice, computed by this engine. Do "
+        "not compute these from read_series output: the annualisation rate is taken from "
+        "the observed session spacing rather than assumed to be 252, the equity path is "
+        "built on the declared basis, and the tool refuses a series whose spacing is too "
+        "irregular to annualise at all.",
+        {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string"},
+                "symbol": {"type": "string"},
+                "start": {"type": "string"},
+                "end": {"type": "string"},
+                "schema": {"type": "string"},
+                "risk_free_rate": {
+                    "type": "number",
+                    "description": "Simple annual rate, defaults to zero. Reported back.",
+                },
+            },
+            "required": ["source", "symbol", "start", "end"],
+            "additionalProperties": False,
+        },
+        _describe_series,
     ),
     ToolSpec(
         "verify_cache",

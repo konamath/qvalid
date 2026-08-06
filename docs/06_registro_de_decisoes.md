@@ -2769,6 +2769,97 @@ que é o mesmo modelo de confiança da interface local em D057.
 
 ---
 
+## D076. Entregar número calculado, não vetor para o chamador improvisar em cima
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** Correção de rota dentro do v2.4, achada do jeito que as oito de D066 a D070 foram
+achadas, olhando o programa funcionar em vez de olhar teste passar. Ligado o servidor de D075 ao
+Claude Code, o pedido foi "leia a série REF como retornos e me diga a volatilidade anualizada e o
+maior drawdown". O agente leu o vetor por `read_series`, não encontrou aqui nada que calculasse
+coisa alguma, e escreveu a matemática num arquivo de rascunho: `statistics.stdev` vezes a raiz de
+**252 chumbado**. Depois importou `LocalCache` direto de `src/` e leu o arquivo bruto.
+
+**O erro não é do agente, é da fronteira.** Ferramenta que exporta vetor e nenhum cálculo não
+impede o cálculo, ela só deixa de conseguir enxergá lo. O drawdown saiu certo, porque drawdown não
+depende de anualização. A volatilidade saiu errada pela razão entre 252 e a taxa que a série de
+fato mostra, e nada na resposta dizia qual taxa fora usada, sobre que base a curva de patrimônio
+fora montada, nem que o intervalo em volta do Sharpe atravessava o zero de ponta a ponta. Medido:
+21,11 % improvisado contra 21,48 % correto, e intervalo de 95 % de −1,18 a +0,98.
+
+**A declaração acontece na fronteira, que é onde o contrato manda.** `PeriodReturns.periods_per_year`
+está documentado como declarado na fronteira e nunca inferido pelo motor. Para log de trades, a
+fronteira é o calendário de negociação; para série que chegou de fonte de dados, passa a ser
+`MarketSeries.to_period_returns`. O que torna a declaração honesta é ela sair dos carimbos de
+observação e **recusar** quando os carimbos não a sustentam, em vez de cair num 252. A taxa
+coincide com a que `core.gridding` usaria para o mesmo grid, diário pela taxa observada de sessões
+e semanal e mensal pelas constantes nominais, e tem que coincidir, porque série descrita aqui e
+depois usada como referência de uma execução precisa anualizar igual nos dois lugares.
+
+**A estatística óbvia não funciona, e medir foi o que mostrou.** A primeira versão do critério de
+regularidade contava a fração de intervalos dentro da banda do período. Série diária com buraco de
+seis meses tirou 0,9984 nela, nota melhor que série mensal legítima, que tirou 0,9722. Um intervalo
+enorme entre seiscentos pequenos é invisível para uma contagem de intervalos, e é exatamente ele que
+quebra a anualização, porque `sessions_per_year` divide pelo vão total. O critério passou a ser a
+**fração do vão que cai dentro de intervalos maiores que a banda**, com orçamento de 2 %. Medido em
+três anos de carimbos diários:
+
+    dias uteis puros                        0,00 %
+    calendario de bolsa com feriados        0,00 %
+    bolsa mais fechamento de uma semana     0,55 %
+    bolsa mais fechamento de duas semanas   1,19 %
+    -----------------------------------------------
+    diario com buraco de um mes             2,74 %
+    diario com buraco de dois meses         5,39 %
+    diario com buraco de seis meses        16,82 %
+    diario emendado com mensal             58,14 %
+
+Dois por cento fica acima de qualquer fechamento que praça real já teve, o mais longo da história
+moderna da Bolsa de Nova York sendo quatro sessões em setembro de 2001, e abaixo do buraco mais
+brando que é dado genuinamente faltando. O teste que guarda esse achado é
+`test_a_hole_hides_from_the_statistic_that_counts_gaps`, que afirma que o critério descartado teria
+aprovado o buraco de seis meses.
+
+**A base é fato verificado, não rótulo.** Retorno simples sobre série de níveis compõe
+multiplicativamente e reconstrói o nível exatamente, então a série é `CURRENT_EQUITY` com o
+primeiro nível como capital inicial. O teste não confere o rótulo, confere que
+`equity_curve` devolve os níveis originais, e um segundo teste mostra que `FIXED_INITIAL` daria
+outro drawdown sem nada na tela dizendo isso.
+
+**Sem teto de linhas, e é o complemento do teto de D075.** `read_series` recusa acima de cinco mil
+linhas porque modelo que recebe o vetor resume e reporta o resumo como se tivesse lido a série.
+`describe_series` devolve estatística que este motor calculou, então não há o que limitar. Os dois
+tetos vêm do mesmo princípio, e é por isso que a mensagem de recusa de um aponta para o outro.
+
+**Dois chamadores, de propósito.** `qvalid describe` roda o mesmo `describe_period_metrics` que a
+ferramenta MCP, e o cálculo mora em `qvalid/describe.py`, não dentro do manipulador, pelo motivo de
+D063 valer aqui igual: `cli.py` importar `mcp/tools.py` seria uma ponta importando outra. Cinco
+vezes neste projeto, em D052, D056, D073 duas vezes e D074, matemática especificada e testada não
+tinha chamador nenhum no pipeline, invisível para cobertura porque os testes dela estavam verdes.
+Um chamador só é como isso acontece.
+
+**A série REF do cache é sintética, e isso precisa estar escrito.** `demo/indice-de-referencia.csv`
+foi gerada por mim em v2.4 para o `--source file` ter o que exercitar. Volatilidade de 21,48 %,
+drawdown de 43,98 % e retorno de −12,54 % são propriedades daquele gerador e não de mercado nenhum.
+Ficam nos testes como valores fixados, que é o único uso legítimo deles.
+
+**Alternativas descartadas.** Deixar o agente calcular e só documentar as convenções, descartada
+porque foi literalmente o que aconteceu e a documentação estava lá. Aceitar `period` como argumento
+do chamador, descartada porque permitiria declarar mensal sobre série diária e receber número sem
+sentido, e recusar é o padrão do projeto. Usar 252, descartada por D006 e pelo fato de a taxa
+observada estar disponível de graça nos próprios carimbos. Alargar as bandas até nenhum fechamento
+real doer, descartada porque o orçamento agregado já resolve isso sem afrouxar o que ele pega.
+
+**Consequência.** O agente e o usuário passam a poder pedir volatilidade, drawdown, CAGR, Sharpe
+com intervalo, Sortino e Kelly de uma fatia do cache, e recebem junto o período, a taxa, de onde a
+taxa veio, a base, o nível inicial, a largura de banda de Bartlett e os avisos. Série com
+espaçamento que não bate com grid nenhum, ou com buraco largo demais, não produz número algum.
+Fica anotado que nada disso impede alguém de importar `LocalCache` e refazer a conta à mão pelo
+bash, o que também aconteceu: a fronteira não é contenção, é a oferta de um caminho que está certo.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
