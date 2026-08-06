@@ -16,13 +16,14 @@ import ast
 import re
 from html import unescape
 from pathlib import Path
+from urllib.parse import urlencode
 
 import pytest
 
 from qvalid.ui.form import MAPPED_FIELDS, RUN_FIELDS, build_files
 from qvalid.ui.pages import finish_page, form_page, setup_page
 from qvalid.ui.scratch import Scratch
-from qvalid.ui.upload import Upload
+from qvalid.ui.upload import Upload, parse_form
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 FOREIGN = FIXTURES / "foreign_mt5.csv"
@@ -270,6 +271,90 @@ class TestTheTwoThingsTheFirstRealUserHit:
         _, _, run = build_files({**ANSWERS, "initial_capital": "250000"})
         assert "initial_capital: 250000" in run
         assert "100000" not in run
+
+
+class TestTheSeamNothingTested:
+    """The browser path had never once worked. See D069.
+
+    The configuration form declared no ``enctype``, so a browser posted
+    ``application/x-www-form-urlencoded``, the server parsed only multipart,
+    and every field arrived empty including the token. The person was told
+    their upload had expired, which was false and unfixable by retrying.
+
+    Every test passed because every test called the page functions with a
+    dictionary already built. The one layer between the browser and the server
+    was the one layer nothing exercised, so these tests go through it.
+    """
+
+    def test_a_form_posted_the_way_a_browser_posts_it_arrives_intact(self) -> None:
+        body = urlencode(ANSWERS).encode()
+        parsed = parse_form(body, "application/x-www-form-urlencoded")
+        assert {name: item.value for name, item in parsed.items()} == ANSWERS
+
+    def test_the_encoding_a_browser_uses_for_a_file_still_works(self) -> None:
+        boundary = "----X"
+        body = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="token"\r\n\r\nabc\r\n'
+            f"--{boundary}--\r\n"
+        ).encode()
+        parsed = parse_form(body, f"multipart/form-data; boundary={boundary}")
+        assert parsed["token"].value == "abc"
+
+    def test_a_blank_field_survives_rather_than_vanishing(self) -> None:
+        """``n_trials`` empty means "no search declared", which is a decision.
+        A parser that dropped it would turn a declaration into an absence."""
+        parsed = parse_form(b"n_trials=&seed=7", "application/x-www-form-urlencoded")
+        assert parsed["n_trials"].value == ""
+        assert parsed["seed"].value == "7"
+
+    def test_the_whole_walk_through_the_parser(self, scratch: Scratch) -> None:
+        """The test that would have caught it: setup, encode as a browser
+        would, parse, finish."""
+        page = setup_page(upload(), scratch)[1]
+        sent = {"token": token_of(page), **ANSWERS, "sym__GER40__currency": "EUR"}
+        parsed = parse_form(urlencode(sent).encode(), "application/x-www-form-urlencoded")
+        status, out = finish_page(parsed, scratch)
+        assert status == 200, out[:400]
+        assert "Keep these three files" in out
+
+    def test_every_form_that_carries_a_file_declares_multipart(self, scratch: Scratch) -> None:
+        """The other half of the same seam: a file input under urlencoded
+        sends the filename and not the bytes."""
+        pages = [form_page(), setup_page(upload(), scratch)[1]]
+        for page in pages:
+            for form in re.findall(r"<form[^>]*>.*?</form>", page, re.S):
+                opening = form[: form.index(">") + 1]
+                if 'type="file"' in form:
+                    assert "multipart/form-data" in opening, opening
+
+
+class TestCurrencyIsAskedForRatherThanInvented:
+    """D069's smaller half, and it blocked the run just as completely."""
+
+    def test_a_blank_currency_is_refused_with_a_readable_reason(self) -> None:
+        """It used to write ``UNSPECIFIED``, which the symbology schema then
+        rejected at the last step with a pydantic error naming a value the
+        person had never typed."""
+        with pytest.raises(ValueError, match="three letter currency"):
+            build_files({**ANSWERS, "sym__GER40__currency": ""})
+
+    def test_and_so_is_something_that_is_not_a_code(self) -> None:
+        with pytest.raises(ValueError, match="three letter currency"):
+            build_files({**ANSWERS, "sym__GER40__currency": "euros"})
+
+    def test_a_code_is_upper_cased_and_written_through(self) -> None:
+        _, symbology, _ = build_files({**ANSWERS, "sym__GER40__currency": "eur"})
+        assert "currency: EUR" in symbology
+
+    def test_the_venue_stays_optional_because_nothing_validates_it(self) -> None:
+        _, symbology, _ = build_files({**ANSWERS, "sym__GER40__venue": ""})
+        assert "venue: UNSPECIFIED" in symbology
+
+    def test_the_form_offers_codes_instead_of_a_free_text_box(self, scratch: Scratch) -> None:
+        page = setup_page(upload(), scratch)[1]
+        assert 'name="sym__GER40__currency"' in page
+        assert "<select" in page[page.index('name="sym__GER40__currency"') - 40 :][:60]
 
 
 class TestScratch:

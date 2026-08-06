@@ -349,6 +349,12 @@ errada. O barato: subir o arquivo errado dava dez avisos pequenos em vez de um g
 A página inicial abria pedindo a configuração, que na primeira vez ninguém tem, e escondia o
 caminho guiado embaixo. Invertida. Ver D068. Achado por alguém perguntando onde clicar.
 
+### v1.15 O caminho do navegador nunca tinha funcionado, entregue em 2026-08-05
+
+O formulário de configuração não declarava `enctype`, o navegador postava urlencoded, o servidor
+só parseava multipart, e todo campo chegava vazio. A pessoa via "upload expirado", que era falso.
+Ver D069. O formulário interativo da v1.12 nunca havia recebido uma submissão real.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

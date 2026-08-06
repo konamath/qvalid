@@ -24,8 +24,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from email.parser import BytesParser
 from email.policy import HTTP
+from urllib.parse import parse_qs
 
-__all__ = ["Upload", "parse_multipart"]
+__all__ = ["Upload", "parse_form", "parse_multipart"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,3 +103,28 @@ def parse_multipart(body: bytes, content_type: str) -> dict[str, Upload]:
         else:
             fields[name] = Upload(value=payload.decode("utf-8", "replace").strip())
     return fields
+
+
+def parse_form(body: bytes, content_type: str) -> dict[str, Upload]:
+    """Parse a submission in whichever encoding the browser chose. See D069.
+
+    A form containing a file input posts ``multipart/form-data``. A form of
+    plain fields posts ``application/x-www-form-urlencoded``, which is smaller
+    and is what a browser picks by default. The interface has both kinds, so
+    the server has to read both.
+
+    It did not. The configuration form declared no ``enctype``, so the browser
+    sent urlencoded, :func:`parse_multipart` found no boundary and returned
+    nothing, and every field arrived empty including the token that names the
+    upload. The person was told their upload had expired, which was false and
+    unfixable by retrying: **the browser path had never once worked.**
+
+    Every test passed because every test called the page functions with a
+    dictionary already built, so the one layer between the browser and the
+    server was the one layer nothing exercised.
+    """
+    kind = content_type.split(";")[0].strip().lower()
+    if kind == "application/x-www-form-urlencoded":
+        pairs = parse_qs(body.decode("utf-8", errors="replace"), keep_blank_values=True)
+        return {name: Upload(value=values[-1]) for name, values in pairs.items()}
+    return parse_multipart(body, content_type)

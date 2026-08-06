@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from qvalid.ui.pages import finish_page, form_page, run_page, setup_page
 from qvalid.ui.scratch import Scratch
-from qvalid.ui.upload import parse_multipart
+from qvalid.ui.upload import parse_form
 
 __all__ = ["serve"]
 
@@ -79,7 +79,7 @@ class _Handler(BaseHTTPRequestHandler):
             )
             return
         body = self.rfile.read(declared)
-        fields = parse_multipart(body, self.headers.get("Content-Type", ""))
+        fields = parse_form(body, self.headers.get("Content-Type", ""))
         if self.path == "/run":
             status, page = run_page(fields)
         elif self.path == "/setup":

@@ -31,7 +31,7 @@ from qvalid.adapters.suggest import Suggestion
 from qvalid.adapters.timeformats import CANDIDATE_FORMATS, FormatMatch
 from qvalid.adapters.tradelog import REQUIRED_FIELDS, FeeConvention, PnlConvention
 
-__all__ = ["RUN_FIELDS", "TIMEZONES", "build_files", "render_form"]
+__all__ = ["CURRENCIES", "RUN_FIELDS", "TIMEZONES", "build_files", "render_form"]
 
 MAPPED_FIELDS = (*REQUIRED_FIELDS, "pnl")
 
@@ -64,6 +64,18 @@ A naive stamp carries no zone, and guessing one shifts every trade that sits
 near a session boundary into the wrong period. The form asks; it does not
 default to the machine's own zone, which would make the same file produce
 different reports on two laptops.
+"""
+
+CURRENCIES = ("USD", "EUR", "GBP", "BRL", "JPY", "CHF", "AUD", "CAD", "MXN", "HKD")
+"""Offered rather than typed, because the schema takes only a three letter code.
+
+The first version of this form asked for venue and currency together as "free
+text, for the record", with neither marked required, and wrote ``UNSPECIFIED``
+into both when they were left blank. Venue tolerates that; currency does not,
+and the whole run was refused at the last step with a pydantic error about a
+value the person never typed. Currency is not decoration: the absolute
+tolerance of the coherence identity is one tick **in account currency**. See
+D069.
 """
 
 RUN_FIELDS: tuple[tuple[str, str, str, str, bool], ...] = (
@@ -286,12 +298,18 @@ def render_form(
             "<label>Tick size<small>smallest price increment; the file cannot show this</small>"
             f'<input type="number" step="any" name="sym__{escape(entry.symbol)}__tick_size" '
             f'value="{escape(prior.get(f"sym__{entry.symbol}__tick_size", ""))}" required></label>'
-            "<label>Venue and currency<small>free text, for the record</small>"
-            f'<input type="text" name="sym__{escape(entry.symbol)}__venue" placeholder="venue" '
-            f'value="{escape(prior.get(f"sym__{entry.symbol}__venue", ""))}">'
-            f'<input type="text" name="sym__{escape(entry.symbol)}__currency" '
-            f'placeholder="currency" '
-            f'value="{escape(prior.get(f"sym__{entry.symbol}__currency", ""))}"></label>'
+            "<label>Currency<small>three letter code, the one the P&amp;L above is "
+            "denominated in. Required: the tolerance of the coherence check is one tick "
+            "in account currency, so it is not decoration</small>"
+            + _select(
+                f"sym__{entry.symbol}__currency",
+                [("", "choose"), *((code, code) for code in CURRENCIES)],
+                prior.get(f"sym__{entry.symbol}__currency", ""),
+            )
+            + "</label><label>Venue <em>optional</em><small>exchange or broker, kept for the "
+            "record and used in no calculation</small>"
+            f'<input type="text" name="sym__{escape(entry.symbol)}__venue" placeholder="CME" '
+            f'value="{escape(prior.get(f"sym__{entry.symbol}__venue", ""))}"></label>'
             "</fieldset>"
         )
     if not symbols:
@@ -446,14 +464,22 @@ def build_files(fields: Mapping[str, str]) -> tuple[str, str, str]:
     for symbol in names:
         multiplier = fields.get(f"sym__{symbol}__multiplier", "").strip()
         tick = fields.get(f"sym__{symbol}__tick_size", "").strip()
+        currency = fields.get(f"sym__{symbol}__currency", "").strip().upper()
         if not multiplier or not tick:
             raise ValueError(f"{symbol} needs both a multiplier and a tick size")
+        if len(currency) != 3 or not currency.isalpha():
+            # Refused here rather than at the last step. Writing a placeholder
+            # and letting the schema reject it produced a pydantic error naming
+            # a value the person had never typed. See D069.
+            raise ValueError(
+                f"{symbol} needs a three letter currency code, got {currency or 'nothing'}"
+            )
         lines += [
             f"  {symbol}:",
             f"    multiplier: {multiplier}",
             f"    tick_size: {tick}",
             f"    venue: {fields.get(f'sym__{symbol}__venue', '').strip() or 'UNSPECIFIED'}",
-            f"    currency: {fields.get(f'sym__{symbol}__currency', '').strip() or 'UNSPECIFIED'}",
+            f"    currency: {currency}",
             "    calendar: WEEKDAYS_UTC",
             f"    contract_root: {symbol}",
             "    source_ids:",

@@ -229,7 +229,7 @@
     "input_name": "trades_long.csv",
     "input_sha256": "6c115c75879363924fe935b5b6634f684854e65b8f88096c9ad57398231c7c74",
     "n_replications": 3000,
-    "package_version": "1.14.0",
+    "package_version": "1.15.0",
     "seed": 20260804
   },
   "warnings": []

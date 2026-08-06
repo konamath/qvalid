@@ -2367,6 +2367,59 @@ campo de caminho.
 
 ---
 
+## D069. O caminho do navegador nunca tinha funcionado
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** A pessoa preencheu o formulário inteiro, mandou, e recebeu **"that upload has
+expired"** na página inicial, perdendo tudo que tinha digitado. A mensagem era falsa e o erro
+não passava tentando de novo.
+
+**A causa.** O formulário de configuração era `<form method="post" action="/finish" id="config">`,
+**sem `enctype`**. Um formulário sem campo de arquivo posta
+`application/x-www-form-urlencoded`, que é o que o navegador escolhe por padrão. O servidor
+chamava `parse_multipart`, que não acha fronteira nenhuma num corpo urlencoded e devolve
+dicionário vazio, por projeto e com teste próprio dizendo que é assim que ele se comporta.
+
+Logo **todo campo chegava vazio**, inclusive o token que nomeia o upload, e `folder_of("")`
+devolve `None`, cujo texto é "expirou". A configuração inteira ia para o lixo antes de a
+primeira linha ser lida.
+
+**O que isso significa: o formulário interativo entregue em D066 nunca funcionou pelo navegador,
+nenhuma vez.** Ele foi construído, documentado, testado e comemorado sem que uma única submissão
+real tivesse chegado ao servidor.
+
+**Por que 892 testes não pegaram.** Todos chamam `finish_page(campos, scratch)` com um
+dicionário já montado. A conversão de bytes HTTP em campos era a única camada entre o navegador e
+o servidor, e era a única que nada exercitava. Testar dos dois lados de uma costura e nunca a
+costura é como um projeto com cobertura alta guarda um defeito total.
+
+`ui/server.py` até tinha a justificativa escrita para não testar a rede: "um teste que abrisse
+uma porta estaria testando `http.server`". Estava errada, e agora está corrigida na prática: o
+que não estava testado não era `http.server`, era a decisão de qual parser chamar.
+
+**Decisão.** `parse_form` lê as duas codificações que um navegador pode mandar e o servidor chama
+ela. Mais três testes que atravessam a costura: um formulário codificado como o navegador
+codifica tem que voltar idêntico, campo em branco tem que sobreviver como campo em branco porque
+`n_trials` vazio é uma declaração e não uma ausência, e a caminhada completa passa pelo parser.
+Mais um teste estrutural: **todo formulário que carrega um campo de arquivo tem que declarar
+`multipart/form-data`**, verificado reintroduzindo o defeito.
+
+**O segundo defeito da mesma sessão, e bloqueava igual.** Venue e moeda eram um único rótulo,
+"free text, for the record", nenhum dos dois marcado como obrigatório. Em branco, eu escrevia
+`UNSPECIFIED` nos dois. Venue tolera; moeda não, porque o esquema exige código de três letras, e
+a corrida morria no último passo com um erro de pydantic citando um valor que a pessoa nunca
+digitou. Moeda virou menu com os códigos, obrigatória, e a recusa acontece no montador com uma
+frase legível em vez de no esquema. Ela não é decoração: a tolerância absoluta da identidade de
+coerência é **uma tick em moeda de conta**.
+
+**Consequência.** Três sessões seguidas de uso real, D067, D068 e esta, acharam sete defeitos que
+a suíte não vê. Nenhum deles é de cálculo, e é isso que os torna interessantes: o motor está
+certo há muitas versões e o caminho até ele estava quebrado em sete lugares diferentes.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
