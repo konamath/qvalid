@@ -2517,6 +2517,18 @@ embutido e validação, descartada pelo argumento estrutural acima.
 as setenta entradas anteriores já apontavam para cá: a pressão para alargar vinha da comparação,
 não do produto.
 
+**Correção posterior, no mesmo dia.** A lista de exclusões acima estava larga demais, e o erro é
+localizável. O argumento contra construir camada de dados era licença de redistribuição, que é
+problema real de quem entrega dado pago a terceiros e **não é problema de uso pessoal**. Esta
+mesma entrada já registra que o argumento de independência não se aplica a uso próprio, e eu
+apliquei a exceção a um argumento e não ao outro.
+
+Voltam para escopo, com decisão registrada quando cada uma for construída: camada de dados com
+cache e manifesto conforme `03` e D033, compra por recorte com chave própria, servidor MCP sobre
+o cache local, e cadeia de opções com o que ela permite. **Permanecem fora**: motor de backtest de
+propósito geral, por custo e não por princípio, e nota de A a F, que continua revogando D040 para
+entrar. Ver `docs/08` para a análise item por item de o que os 300 dólares por mês de fato compram.
+
 ---
 
 ## D072. A matriz de tentativas passa a sair da busca, e não de um formulário
