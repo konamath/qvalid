@@ -115,11 +115,22 @@ def inspect(
     typer.echo(f"# draft mapping for {log.name}, from its header. Read it before saving.")
     typer.echo("# Every line is a guess about which column means what. See D016 and D060.")
     typer.echo("source: generic")
-    typer.echo("fee_convention: MAGNITUDE   # positive cost. SIGNED if fees arrive negative")
-    typer.echo("pnl_convention: NET         # GROSS if the P&L column excludes costs. See D017")
     typer.echo("pnl_source: COLUMN")
-    typer.echo('timestamp_format: "%Y-%m-%d %H:%M:%S"   # must match the export exactly')
-    typer.echo("timezone: America/New_York  # required when the stamps carry no offset")
+    typer.echo("# The four below are GUESSES, not readings. The header cannot show any of them,")
+    typer.echo("# and all four change every number in the report. `qvalid probe` checks two.")
+    typer.echo(
+        "fee_convention: MAGNITUDE   # DECIDE: MAGNITUDE if costs are positive, "
+        "NEGATED if they arrive with a minus sign"
+    )
+    typer.echo(
+        "pnl_convention: NET         # DECIDE: NET if the column is after costs, "
+        "GROSS if before. See D017"
+    )
+    typer.echo(
+        'timestamp_format: "%Y-%m-%d %H:%M:%S"   # DECIDE: must match the export exactly, '
+        "day first is %d.%m.%Y"
+    )
+    typer.echo("timezone: America/New_York  # DECIDE: the zone the export's clock is in")
     typer.echo("columns:")
     for name in (*REQUIRED_FIELDS, "pnl"):
         if name in found.columns:
@@ -159,7 +170,7 @@ def probe(
     file it will later validate is not independent evidence of anything. Its
     use is to disagree with what you declare when what you declare is wrong.
     """
-    from qvalid.adapters.probe import Detectability, probe_trade_log
+    from qvalid.adapters.probe import Detectability, probe_trade_log, read_declarations
     from qvalid.adapters.tradelog import load_mapping
 
     for label, target in (("trade log", log), ("mapping", mapping)):
@@ -167,7 +178,9 @@ def probe(
             typer.echo(f"no {label} at {target}", err=True)
             raise typer.Exit(code=2)
     try:
-        found = probe_trade_log(log, load_mapping(mapping))
+        declared = load_mapping(mapping)
+        seen = read_declarations(log, declared)
+        found = probe_trade_log(log, declared)
     except QvalError as exc:
         typer.echo(f"{type(exc).__name__}: {exc}", err=True)
         raise typer.Exit(code=1) from exc
@@ -211,6 +224,29 @@ def probe(
                 f"#   {entry.symbol}: costs are smaller than the rounding of the P&L column, "
                 "so the file cannot say. You must know. See D017."
             )
+
+    typer.echo("")
+    typer.echo("# What your mapping declares, against what the file shows:")
+    if seen.fee_convention_implied is None:
+        typer.echo(f"#   fees are {seen.fee_sign}, which implies no convention either way.")
+    else:
+        agrees = seen.fee_convention_implied == declared.fee_convention.value
+        typer.echo(
+            f"#   fees are {seen.fee_sign} in the file, implying "
+            f"fee_convention: {seen.fee_convention_implied}. "
+            + (
+                "Agrees with your mapping."
+                if agrees
+                else f"YOUR MAPPING SAYS {declared.fee_convention.value}, WHICH DISAGREES."
+            )
+        )
+    typer.echo(f"#   first entry stamp reads {seen.sample_entry_ts!r}")
+    typer.echo(f"#   first exit stamp reads  {seen.sample_exit_ts!r}")
+    if seen.timestamp_format_parses is False:
+        typer.echo(
+            f"#   YOUR timestamp_format {declared.timestamp_format!r} DOES NOT PARSE THAT. "
+            "A day first export needs %d.%m.%Y or %d/%m/%Y."
+        )
 
 
 @app.command()

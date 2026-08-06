@@ -290,6 +290,19 @@ partir do arquivo de trades.
 diagnóstico foram construídas exatamente para esse momento e nunca viram um arquivo que não
 fosse fixture, sintético ou o S&P 500 do FRED.
 
+### v1.8 A primeira exportação estrangeira, entregue em 2026-08-05
+
+Percurso completo, `inspect` → `probe` → `validate`, sobre um arquivo com vocabulário que o
+projeto nunca viu: data dia primeiro, custos negativos, lucro antes dos custos. Quatro defeitos
+apareceram, três corrigidos e um registrado como candidato. Ver D062.
+
+A regra que sai disso: fixture escrita pelo projeto confere o código contra ele mesmo. Os quatro
+defeitos passaram por 801 testes com cobertura acima da meta, ruff e mypy limpos.
+
+**O que ainda falta, e é diferente:** uma exportação real de corretora. O arquivo estrangeiro
+ainda foi fabricado por quem escreveu o teste, e só um arquivo que ninguém construiu para passar
+pode achar o que não se sabe procurar.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

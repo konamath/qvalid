@@ -56,12 +56,14 @@ from qvalid.exceptions import SchemaError
 __all__ = [
     "COST_TO_QUANTUM_FLOOR",
     "MULTIPLIER_QUANTUM_CEILING",
+    "Declarations",
     "Detectability",
     "SymbolProbe",
     "implied_multipliers",
     "probe_symbols",
     "probe_trade_log",
     "quantum_of",
+    "read_declarations",
 ]
 
 COST_TO_QUANTUM_FLOOR: Final = 1.0
@@ -339,6 +341,67 @@ def probe_symbols(
             )
         )
     return tuple(out)
+
+
+@dataclass(frozen=True, slots=True)
+class Declarations:
+    """What the file shows about the three declarations the header cannot.
+
+    ``inspect`` has to guess the fee sign, the timestamp format and the zone,
+    because a header carries none of them, and a guess printed without a mark
+    reads as a reading. Two of the three are plainly visible one line into the
+    data, so this looks and reports rather than leaving the guess standing.
+
+    Attributes
+    ----------
+    fee_sign : str
+        ``"POSITIVE"``, ``"NEGATIVE"``, ``"MIXED"`` or ``"ZERO"``, from the raw
+        column before any convention is applied.
+    fee_convention_implied : str or None
+        The convention consistent with that sign, or ``None`` when the column
+        is mixed or all zero and therefore says nothing.
+    sample_entry_ts, sample_exit_ts : str
+        The first timestamp of each column, verbatim. A format string is
+        checked by eye against the thing it has to parse, and ``08.03.2022``
+        against ``%Y-%m-%d`` is obvious on sight and invisible in a config file.
+    timestamp_format_parses : bool or None
+        Whether the mapping's declared format actually reads the sample.
+        ``None`` when the mapping defers to inference.
+    """
+
+    fee_sign: str
+    fee_convention_implied: str | None
+    sample_entry_ts: str
+    sample_exit_ts: str
+    timestamp_format_parses: bool | None
+
+
+def read_declarations(path: str | Path, mapping: ColumnMapping) -> Declarations:
+    """Look at one line of data to check what the header could not show.
+
+    Deliberately shallow. This exists to catch the declaration that is wrong on
+    its face, not to infer anything: the sign of a cost column and whether a
+    format string parses its own input are facts, and neither is the kind of
+    inference D016 refused.
+    """
+    frame = pd.read_csv(Path(path))
+    raw = frame[mapping.columns["fees"]].to_numpy(dtype=np.float64)
+    if not np.any(raw != 0.0):
+        sign, implied = "ZERO", None
+    elif np.all(raw >= 0.0):
+        sign, implied = "POSITIVE", "MAGNITUDE"
+    elif np.all(raw <= 0.0):
+        sign, implied = "NEGATIVE", "NEGATED"
+    else:
+        sign, implied = "MIXED", None
+
+    entry = str(frame[mapping.columns["entry_ts"]].iloc[0])
+    exit_ = str(frame[mapping.columns["exit_ts"]].iloc[0])
+    parses: bool | None = None
+    if mapping.timestamp_format is not None:
+        stamps = pd.to_datetime([entry, exit_], format=mapping.timestamp_format, errors="coerce")
+        parses = not bool(np.any(pd.isna(stamps)))
+    return Declarations(sign, implied, entry, exit_, parses)
 
 
 def probe_trade_log(path: str | Path, mapping: ColumnMapping) -> tuple[SymbolProbe, ...]:

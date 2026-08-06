@@ -1985,6 +1985,69 @@ literalmente correta.
 
 ---
 
+## D062. A primeira exportação estrangeira, e os quatro defeitos que 801 testes não pegaram
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Toda fixture do projeto tem colunas que o projeto nomeou, timestamps que o projeto
+formatou e convenções que o projeto escolheu. Isso confere o código contra ele mesmo.
+`tests/fixtures/foreign_mt5.csv` é uma exportação estilo MetaTrader com data dia primeiro,
+custos negativos e coluna de lucro **antes** dos custos. Nenhuma dessas três coisas aparece em
+qualquer fixture anterior. Percorrer `inspect` → `probe` → `validate` nela, sem atalho e
+salvando cada arquivo à mão como um usuário faria, achou quatro coisas.
+
+**Defeito 1, e o pior.** O rascunho de `inspect` dizia `SIGNED if fees arrive negative`. Não
+existe `SIGNED`. A enumeração é `MAGNITUDE` ou `NEGATED`, então quem seguisse o comentário
+recebia erro de validação do pydantic. Introduzido em D060 e não pego por nada, porque nenhum
+teste comparava a prosa impressa com o conjunto de valores válidos. Agora um teste estrutural
+extrai todo identificador em maiúsculas de cada linha do rascunho e exige que exista na
+enumeração correspondente. Verificado reintroduzindo o defeito: o teste reprova.
+
+**Defeito 2, de projeto.** `inspect` recusa colunas que não consegue resolver e ao mesmo tempo
+imprimia `fee_convention`, `pnl_convention`, `timestamp_format` e `timezone` como se fossem
+leituras. Um cabeçalho não mostra nenhuma das quatro, e **as quatro estavam erradas para este
+arquivo**. Um palpite impresso sem marca lê-se como leitura. As quatro passam a sair marcadas
+`DECIDE`, com as opções reais escritas ao lado.
+
+**Defeito 3, de omissão.** `probe` já lia a coluna de custos e não dizia nada sobre o sinal
+dela, que é diretamente observável. Agora `read_declarations` relata o sinal, a convenção que
+ele implica, discordância explícita com o que o mapeamento declara, e o primeiro timestamp
+verbatim junto de se o formato declarado consegue lê-lo. `08.03.2022` contra `%Y-%m-%d` é óbvio
+de ver e invisível dentro de um arquivo de configuração.
+
+**Observação 4, não corrigida.** `track_record` sai como `FAILED` quando o Sharpe é negativo,
+levantando `InsufficientSampleError`. A mensagem é clara e diz que mais dados não ajudariam, mas
+o **nome** da exceção sugere justamente coletar mais dados, e contradiz a própria mensagem. E
+`FAILED` em D031 significa erro típado durante a execução, enquanto isto é um fato sobre os
+dados: o comprimento de série exigido é infinito, que é resposta e não falha. Fica registrado
+como candidato e **não** foi mudado, porque alterar o conjunto de estados de D031 com base em um
+exemplo é exatamente o tipo de mudança sem medição que este projeto evita.
+
+**O que funcionou.** `inspect` acertou as dez colunas de um vocabulário que nunca viu, e deixou
+`Swap` de fora. `probe` recuperou multiplicador 25,0 exato e **contradisse** o mapeamento
+ingênuo dizendo `GROSS`, que é a discordância que D061 construiu. Na primeira tentativa
+`validate` recusou por `GridSparsityError`, e a recusa estava certa: 520 trades comprimidos em
+78 dias dão 59 períodos diários contra o mínimo de 60, e a mensagem mostrou os três degraus com
+o motivo de cada um, que é a consequência escrita em D011.
+
+**Verificação independente.** Com a configuração corrigida, todo número do relatório foi
+conferido contra um cálculo feito direto do CSV cru, sem importar nada da biblioteca: contagem
+de trades, expectância, taxa de acerto, fator de lucro, número de períodos da grade, fração
+ativa, retorno acumulado e o Sharpe anualizado. Todos batem. O Sharpe só fecha sob conversão
+**geométrica** da taxa livre de risco, `(1+rf)^(1/ppy)-1`, e não sob `rf/ppy`, que dá
+-0,53165 contra os -0,52682 do relatório. A biblioteca usa a geométrica e agora isso está
+verificado de fora em vez de assumido.
+
+**Consequência.** A regra que fica: **fixture escrita pelo projeto não substitui arquivo
+estrangeiro.** Quatro defeitos passaram por 801 testes, cobertura acima da meta, ruff e mypy
+limpos, e caíram no primeiro arquivo com vocabulário de outra pessoa. O arquivo virou fixture
+permanente e o caminho inteiro virou teste. Continua faltando, e é diferente disto, uma
+exportação real de corretora de verdade: esta ainda foi fabricada por mim, e só um arquivo que
+ninguém construiu para o teste pode achar o que eu nem sei procurar.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

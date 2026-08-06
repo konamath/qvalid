@@ -1,0 +1,21 @@
+# The corrected mapping for foreign_mt5.csv, an export in none of this
+# project's vocabularies. Every one of the four lines below the columns was
+# wrong in the draft `qvalid inspect` prints, which is the point of D062.
+source: generic
+fee_convention: NEGATED
+pnl_convention: GROSS
+pnl_source: COLUMN
+timestamp_format: "%d.%m.%Y %H:%M:%S"
+timezone: Europe/Berlin
+columns:
+  trade_id: Ticket
+  symbol: Symbol
+  side: Type
+  qty: Volume
+  entry_ts: Open Time
+  exit_ts: Close Time
+  entry_px: Open Price
+  exit_px: Close Price
+  fees: Commission
+  pnl: Profit
+tag_columns: [Swap]
