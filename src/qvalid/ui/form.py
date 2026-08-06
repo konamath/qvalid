@@ -66,45 +66,49 @@ default to the machine's own zone, which would make the same file produce
 different reports on two laptops.
 """
 
-RUN_FIELDS: tuple[tuple[str, str, str, str, str], ...] = (
-    (
-        "initial_capital",
-        "Initial capital",
-        "number",
-        "100000",
-        "The account this record belongs to",
-    ),
-    ("seed", "Seed", "number", "20260805", "Any integer. It governs every simulation in the run"),
+RUN_FIELDS: tuple[tuple[str, str, str, str, bool], ...] = (
+    ("initial_capital", "Initial capital", "100000", "The account this record belongs to", True),
+    ("seed", "Seed", "20260805", "Any integer. It governs every simulation in the run", True),
     (
         "risk_free_rate",
         "Risk free rate",
-        "number",
         "0.0",
         "Annual, as a decimal. Converted geometrically and printed in the report",
+        True,
     ),
-    ("n_paths", "Bootstrap paths", "number", "2000", "More is slower and smoother"),
+    ("n_paths", "Bootstrap paths", "2000", "More is slower and smoother", True),
     (
         "ruin_barrier",
         "Ruin barrier",
-        "number",
         "85000",
-        "The equity at which the account is over. Leave blank to skip the ruin section",
+        "The equity at which the account is over. Clear it to skip the ruin section",
+        False,
     ),
     (
         "n_trials",
         "Configurations tried",
-        "number",
         "",
         "How many variants you tested before this one. Leave blank and no correction "
         "for search runs, and the verdict is suppressed rather than guessed. See D004",
+        False,
     ),
 )
-"""Nothing here is readable from a trade log, which is why it is all typed.
+"""Name, label, the value the form offers, the hint, and whether blank is allowed.
 
-Capital, seed, rate and barrier are choices about how the person wants to be
-judged. ``n_trials`` is the one that decides whether the report can reach a
-verdict at all, and it is left empty deliberately: a default would fabricate
-the input that determines the answer.
+Nothing here is readable from a trade log, which is why it is all typed. Capital,
+seed, rate and barrier are choices about how the person wants to be judged, and
+``n_trials`` decides whether the report can reach a verdict at all. It is left
+empty deliberately: a default would fabricate the input that determines the
+answer.
+
+**The offered value is not a fallback.** It fills the box on the way out and has
+no standing on the way back: a required field that returns empty is refused by
+:func:`build_files`, never quietly replaced. The two were the same thing until
+D067, and the consequence was that a number the browser declined to accept, a
+decimal comma on a machine whose locale uses one, produced a report about a
+hundred thousand when the person had typed two hundred and fifty. Every one of
+these changes every figure in the report, and a substitution nobody sees is the
+exact failure this project exists to remove.
 """
 
 _SCRIPT = """
@@ -297,11 +301,12 @@ def render_form(
         )
 
     run = ""
-    for name, label, kind, default, hint in RUN_FIELDS:
+    for name, label, offered, hint, required in RUN_FIELDS:
+        mark = "" if required else " <em>optional</em>"
         run += (
-            f"<label>{escape(label)}<small>{escape(hint)}</small>"
-            f'<input type="{kind}" step="any" name="{escape(name)}" '
-            f'value="{escape(prior.get(name, default))}"></label>'
+            f"<label>{escape(label)}{mark}<small>{escape(hint)}</small>"
+            f'<input type="number" step="any" name="{escape(name)}" '
+            f'value="{escape(prior.get(name, offered))}"></label>'
         )
 
     return (
@@ -462,9 +467,15 @@ def build_files(fields: Mapping[str, str]) -> tuple[str, str, str]:
         "symbology_path: symbology.yaml",
         "basis: FIXED_INITIAL",
     ]
-    for name, _, _, default, _ in RUN_FIELDS:
-        value = fields.get(name, "").strip() or default
+    for name, label, _, _, required in RUN_FIELDS:
+        value = fields.get(name, "").strip()
         if not value:
+            if required:
+                raise ValueError(
+                    f"{label} came back empty. It is not defaulted: a value that changes every "
+                    "figure in the report has to be one you chose. If you typed a decimal comma, "
+                    "your browser rejected it and sent nothing; use a point"
+                )
             continue
         run.append(f"{name}: {value}")
     return mapping, symbology, "\n".join(run)

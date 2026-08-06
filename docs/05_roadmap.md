@@ -337,6 +337,13 @@ O melhor pedaço é que o formato de data passou a ser **lido da coluna inteira*
 ambígua entre dia-primeiro e mês-primeiro; 240 linhas resolvem. Quando não resolvem, as duas
 leituras são mostradas lado a lado em vez de uma ser escolhida.
 
+### v1.13 O que apareceu quando alguém usou, entregue em 2026-08-05
+
+Dois defeitos na primeira sessão de uso real da interface, nenhum deles pego por 882 testes.
+Ver D067. O grave: campo numérico obrigatório que voltava vazio virava o valor sugerido em
+silêncio, então um navegador que recusasse uma vírgula decimal produzia relatório sobre a conta
+errada. O barato: subir o arquivo errado dava dez avisos pequenos em vez de um grande.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

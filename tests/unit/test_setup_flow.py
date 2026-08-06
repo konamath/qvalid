@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from qvalid.ui.form import RUN_FIELDS, build_files
+from qvalid.ui.form import MAPPED_FIELDS, RUN_FIELDS, build_files
 from qvalid.ui.pages import finish_page, form_page, setup_page
 from qvalid.ui.scratch import Scratch
 from qvalid.ui.upload import Upload
@@ -226,6 +226,50 @@ class TestBuildFilesIsTheOnlyAuthority:
         _, _, run = build_files({**ANSWERS, "n_trials": "20"})
         for name, _, _, _, _ in RUN_FIELDS:
             assert f"{name}:" in run
+
+
+class TestTheTwoThingsTheFirstRealUserHit:
+    """Both found by watching someone use it, not by review. See D067."""
+
+    def test_a_file_that_is_not_a_trade_log_is_named_as_such(self, scratch: Scratch) -> None:
+        """Uploading the trial matrix by mistake produced ten copies of "no
+        column matched" beside a dead button, leaving the person hunting for
+        ten mistakes when they had made one."""
+        page = setup_page(upload(FIXTURES / "trials_winner.csv"), scratch)[1]
+        assert "does not look like a trade log" in page
+        assert "period_end" in page, "the person should see which columns it did find"
+
+    def test_a_real_trade_log_is_not_accused_of_being_the_wrong_file(
+        self, scratch: Scratch
+    ) -> None:
+        assert "does not look like a trade log" not in setup_page(upload(), scratch)[1]
+
+    def test_the_menus_still_work_on_an_unrecognised_file(self, scratch: Scratch) -> None:
+        """The banner is a diagnosis, not a refusal: a real log with unusual
+        names is exactly what the menus are for."""
+        page = setup_page(upload(FIXTURES / "trials_winner.csv"), scratch)[1]
+        assert page.count("<select") >= len(MAPPED_FIELDS)
+
+    @pytest.mark.parametrize("field", ["initial_capital", "seed", "risk_free_rate", "n_paths"])
+    def test_a_required_number_coming_back_empty_is_refused(self, field: str) -> None:
+        """It used to become the value the form had offered. A browser that
+        rejects a decimal comma sends nothing, and the person who typed
+        250000 got a report about 100000 with no sign that anything happened."""
+        with pytest.raises(ValueError, match="came back empty"):
+            build_files({**ANSWERS, field: ""})
+
+    @pytest.mark.parametrize("field", ["ruin_barrier", "n_trials"])
+    def test_an_optional_number_coming_back_empty_is_simply_omitted(self, field: str) -> None:
+        """Blank means something here: skip the section, declare no search."""
+        _, _, run = build_files({**ANSWERS, field: ""})
+        assert f"{field}:" not in run
+
+    def test_the_offered_value_never_reaches_the_configuration_on_its_own(self) -> None:
+        """The value that fills the box and the value the assembler accepts
+        were the same thing, which is what made the substitution invisible."""
+        _, _, run = build_files({**ANSWERS, "initial_capital": "250000"})
+        assert "initial_capital: 250000" in run
+        assert "100000" not in run
 
 
 class TestScratch:

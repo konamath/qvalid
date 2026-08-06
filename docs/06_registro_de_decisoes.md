@@ -2278,6 +2278,60 @@ multiplicador e tick, escolher o fuso, rodar.
 
 ---
 
+## D067. Duas coisas que só apareceram quando alguém usou
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** A v1.12 saiu com 882 testes passando, ruff e mypy limpos, e o caminho inteiro
+percorrido em teste. Aí uma pessoa abriu a página e subiu um arquivo. Ela pegou
+`trials_winner.csv`, a matriz de tentativas, em vez de `trades_winner.csv`. Foi engano
+natural: os dois estavam na mesma pasta, com nomes parecidos.
+
+**Defeito 1, e o barato de consertar.** A tela respondeu com dez cópias de
+`no column matched by name`, uma ao lado de cada campo, e o botão desabilitado dizendo que todo
+campo precisa de coluna. Tudo tecnicamente correto e completamente inútil: a pessoa fica
+caçando dez erros quando cometeu um. **Zero campos casarem não é dez problemas pequenos, é um
+problema grande**, e merece ser dito uma vez no topo, com o nome do arquivo e as colunas que ele
+de fato tem. O aviso é diagnóstico e não recusa: log de verdade com nomes esquisitos é
+exatamente para isso que os menus existem, e eles continuam funcionando.
+
+**Defeito 2, e é sério.** Olhando a mesma tela, o campo de taxa livre de risco aparecia como
+`0,0`, com vírgula, porque a máquina está em português. Isso levantou a pergunta certa: e se o
+navegador recusar o que foi digitado e mandar vazio? Medido, e era pior do que eu esperava:
+
+    campo enviado vazio        antes           agora
+    initial_capital            vira 100000     RECUSADO
+    seed                       vira 20260805   RECUSADO
+    risk_free_rate             vira 0.0        RECUSADO
+    ruin_barrier               vira 85000      omitido, que é o significado de vazio
+    n_trials                   omitido         omitido
+
+Quem digitasse `250000` de capital e o navegador engasgasse recebia um relatório sobre uma conta
+de cem mil, sem aviso nenhum. **Substituição silenciosa de um parâmetro que muda toda figura do
+relatório**, que é literalmente a falha que este projeto existe para remover, e eu a coloquei na
+camada de interface por uma linha: `fields.get(name, "").strip() or default`.
+
+A causa raiz é conceitual e vale mais que o conserto. **O valor que preenche a caixa na ida e o
+valor que o montador aceita na volta eram a mesma coisa.** Agora `RUN_FIELDS` carrega o valor
+*oferecido* mais um sinalizador de obrigatório, e o oferecido não tem nenhuma autoridade na
+volta: campo obrigatório que retorna vazio é recusado com a mensagem dizendo que, se a pessoa
+digitou vírgula decimal, o navegador recusou e mandou nada. Vazio continua significando algo em
+`ruin_barrier` e `n_trials`, e nesses dois é omissão e não recusa.
+
+**Alternativas descartadas.** Aceitar vírgula e converter, descartada porque adivinhar
+separador decimal é a mesma classe de erro que adivinhar dia contra mês, e aqui não há coluna
+inteira para desempatar. Marcar os campos `required` no HTML, descartada porque resolve só o
+navegador que colabora e a autoridade tem que ficar no servidor de qualquer jeito.
+
+**Consequência, e é a lição.** Nenhum dos dois foi achado por revisão, por cobertura ou pelos
+882 testes. Os dois apareceram na primeira vez que alguém que não escreveu o código olhou a
+tela, e o segundo só apareceu porque um `0,0` com vírgula numa captura me fez perguntar o que
+acontece quando o campo volta vazio. Fica como argumento para o que `05` já dizia sobre a etapa
+2 depender de semanas de uso real: **teste não substitui alguém usando.**
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

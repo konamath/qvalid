@@ -34,7 +34,7 @@ from qvalid.drafts import mapping_draft
 from qvalid.exceptions import QvalError
 from qvalid.pipeline import run_validation
 from qvalid.report.html import render_html
-from qvalid.ui.form import build_files, render_form
+from qvalid.ui.form import MAPPED_FIELDS, build_files, render_form
 from qvalid.ui.scratch import Scratch
 from qvalid.ui.upload import Upload
 
@@ -249,6 +249,23 @@ def _configuration_body(
         if error
         else ""
     )
+    # Zero matches is not ten small problems, it is one large one. Saying "no
+    # column matched" beside every field and disabling the button leaves the
+    # person hunting for the ten things they did wrong, when the thing they did
+    # was open the wrong file. See D067.
+    if not found.columns:
+        warning = (
+            '<div class="error"><strong>This does not look like a trade log.</strong>'
+            f"<code>Not one of the {len(MAPPED_FIELDS)} fields matched a column in "
+            f"{escape(stored.name)}, whose columns are: {escape(', '.join(header[:8]))}"
+            f"{'...' if len(header) > 8 else ''}."
+            "\n\nA trade log has one row per closed trade, with an instrument, a side, a "
+            "quantity, two timestamps, two prices and a profit. If this is a returns series, "
+            "an account statement or a matrix of tested configurations, it is a different "
+            "kind of file and this page cannot use it.\n\nIf it really is your trade log "
+            "and the names are simply unusual, the menus below still work; choose the "
+            "columns yourself.</code></div>"
+        ) + warning
     return (
         "<h1>Configure the run</h1>"
         f"<p class='sub'>Everything already filled in was read from "
