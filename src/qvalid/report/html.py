@@ -107,6 +107,7 @@ def render_html(
     *,
     charts: Sequence[str] = (),
     title: str = "Quantify validation report",
+    prologue: str = "",
 ) -> str:
     """Render a report as a single self contained HTML document.
 
@@ -119,6 +120,11 @@ def render_html(
         about which charts a run produced, and so a run with no simulation
         produces a report with no empty axes.
     title : str, optional
+    prologue : str, optional
+        Markup placed above the report, used by the interface to hand back the
+        three configuration files it just built. Empty by default, so a report
+        written to disk is unchanged and the reproducibility comparison of
+        ``04`` still sees the same document it always did.
 
     Returns
     -------
@@ -143,6 +149,7 @@ def render_html(
         '<html lang="en"><head><meta charset="utf-8">'
         f"<title>{escape(title)}</title>"
         f"<style>{_STYLE}</style></head><body><main>"
+        f"{prologue}"
         f"<h1>{escape(title)}</h1>"
         f"<p class='sub'>{escape(provenance['input_name'])} &middot; "
         f"sha256 {escape(provenance['input_sha256'][:16])}&hellip; &middot; "

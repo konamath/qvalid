@@ -26,12 +26,15 @@ from collections.abc import Mapping
 from html import escape
 from pathlib import Path
 
-from qvalid.adapters.probe import probe_trade_log, read_declarations
+from qvalid.adapters.probe import Declarations, SymbolProbe, probe_trade_log, read_declarations
+from qvalid.adapters.suggest import suggest_columns
+from qvalid.adapters.timeformats import FormatMatch, matching_formats
 from qvalid.adapters.tradelog import load_mapping_text
-from qvalid.drafts import evidence_lines, mapping_draft, run_config_draft, symbology_draft
+from qvalid.drafts import mapping_draft
 from qvalid.exceptions import QvalError
 from qvalid.pipeline import run_validation
 from qvalid.report.html import render_html
+from qvalid.ui.form import build_files, render_form
 from qvalid.ui.scratch import Scratch
 from qvalid.ui.upload import Upload
 
@@ -76,9 +79,28 @@ button { margin-top: 1.8rem; padding: .6rem 1.4rem; font-size: 1rem }
 footer { margin-top: 3rem; color: #6a6a6a; font-size: .9rem }
 textarea { width: 100%; font-family: monospace; font-size: .82rem; line-height: 1.45;
            padding: .6rem; white-space: pre; overflow-x: auto }
-pre.evidence { border-left: 3px solid #7a7; padding: .6rem 1rem; font-size: .82rem;
-               white-space: pre-wrap; overflow-x: auto }
-a.quiet { color: inherit }
+h2 { font-size: 1.15rem; margin-top: 2.4rem; border-bottom: 1px solid #ddd; padding-bottom: .2rem }
+p.hint { color: #6a6a6a; font-size: .9rem; margin: .2rem 0 .6rem }
+.scroll { overflow-x: auto; margin-bottom: 1rem }
+table.preview { border-collapse: collapse; font-size: .74rem; font-family: monospace }
+table.preview th, table.preview td { border: 1px solid #ddd; padding: .18rem .4rem;
+                                     white-space: nowrap; text-align: left }
+table.fields { border-collapse: collapse; width: 100% }
+table.fields th { text-align: left; font-family: monospace; font-weight: normal;
+                  padding: .3rem .6rem .3rem 0; white-space: nowrap }
+table.fields td { padding: .3rem 0 }
+table.fields td.hint { color: #6a6a6a; font-size: .85rem; padding-left: .8rem }
+table.fields em { color: #a33; font-style: normal }
+select { padding: .35rem; font-size: .9rem; min-width: 14rem }
+select.clash { outline: 2px solid #a33 }
+input[type=number] { width: 100%; padding: .5rem; font-family: monospace; font-size: .95rem }
+fieldset { border: 1px solid #ddd; padding: .2rem 1rem 1rem; margin-top: 1rem }
+legend { font-family: monospace; font-weight: bold; padding: 0 .4rem }
+label.inline { display: inline-block; margin-right: 1rem; font-weight: normal }
+button[disabled] { opacity: .45; cursor: not-allowed }
+.keep { border: 1px solid #7a7; padding: .8rem 1rem; margin-bottom: 2rem; font-size: .9rem }
+.keep pre { font-size: .74rem; overflow-x: auto; white-space: pre }
+.keep summary { cursor: pointer; font-family: monospace; margin-top: .5rem }
 """
 
 
@@ -139,21 +161,8 @@ def form_page(values: Mapping[str, str] | None = None, error: str | None = None)
     )
 
 
-SETUP_FILES = (
-    ("mapping", "mapping.yaml", "Which column means what, and the four the header cannot show"),
-    ("symbology", "symbology.yaml", "Multiplier and tick per symbol. The implied value is a check"),
-    ("config", "run.yaml", "How you want to be judged. None of it is in your trade log"),
-)
-"""The three files, in the order the person has to settle them.
-
-Order is not cosmetic: the symbology draft cannot exist until the columns are
-settled, because recovering a multiplier means reading prices and quantities
-through the mapping. The page shows all three at once anyway, because a wizard
-that hides the next question makes the shape of the work invisible.
-"""
-
-
 def _document(title: str, body: str) -> str:
+    """Wrap a body in the shell every page of the interface shares."""
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         f"<title>{escape(title)}</title><meta name='viewport' "
@@ -162,32 +171,35 @@ def _document(title: str, body: str) -> str:
     )
 
 
+def _rows_of(path: Path, limit: int = 6) -> tuple[list[str], list[list[str]], list[str]]:
+    """Header, first rows for the preview, and the whole exit stamp column.
+
+    The preview is short because it is there to remind the person what their
+    columns look like. The stamp column is read in full because
+    :func:`~qvalid.adapters.timeformats.matching_formats` gets stronger with
+    every row: one stamp cannot separate day first from month first, and a
+    column almost always can.
+    """
+    with path.open(newline="", encoding="utf-8", errors="replace") as handle:
+        reader = csv.reader(handle)
+        header = next(reader, [])
+        body = list(reader)
+    return header, body[:limit], [row[0] for row in body if row]
+
+
 def setup_page(fields: Mapping[str, Upload], scratch: Scratch) -> tuple[int, str]:
-    """Draft all three configuration files from an uploaded log. See D063.
+    """Draft the configuration as a form, filled in from the file. See D066.
 
-    Parameters
-    ----------
-    fields : mapping of str to Upload
-        Submitted fields; ``log`` carries the uploaded bytes.
-    scratch : Scratch
-        Where the log waits for the second request.
+    No arithmetic here, per the permanent constraint in ``05``. The column
+    matches come from :mod:`qvalid.adapters.suggest`, the fee sign and sample
+    stamps from :mod:`qvalid.adapters.probe`, the timestamp patterns from
+    :mod:`qvalid.adapters.timeformats`, and the implied multipliers from the
+    probe. This module places them on a page.
 
-    Returns
-    -------
-    tuple of (int, str)
-        HTTP status and a complete HTML document.
-
-    Notes
-    -----
-    No arithmetic happens here, per the permanent constraint in ``05``. Every
-    number on the page comes from :mod:`qvalid.adapters.probe` and every line of
-    every draft from :mod:`qvalid.drafts`, which is the same text the command
-    line prints. That identity is asserted by a test rather than left to care.
-
-    The symbology draft and the evidence need a loadable mapping, and the
-    mapping draft is not loadable when a column was left unresolved. In that
-    case the page shows the mapping alone and says why, rather than showing an
-    empty symbology that looks like a finding of no symbols.
+    The probe needs a usable mapping to read anything, and the suggested one is
+    not usable when a column went unresolved. In that case the form still
+    renders, with the contract section saying so, and filling in the columns
+    and submitting brings it back populated.
     """
     log = fields.get(LOG_FIELD[0], Upload())
     if not log.is_file or not log.filename:
@@ -199,81 +211,116 @@ def setup_page(fields: Mapping[str, Upload], scratch: Scratch) -> tuple[int, str
     stored = scratch.log_of(token)
     if stored is None:  # pragma: no cover - the store just wrote it
         return 500, form_page(error="the upload could not be stored")
-
-    with stored.open(newline="", encoding="utf-8", errors="replace") as handle:
-        header = next(csv.reader(handle), [])
+    header, rows, _ = _rows_of(stored)
     if not header:
         return 400, form_page(error=f"{log.filename} has no header row")
 
-    drafts = {"mapping": mapping_draft(header, source_name=stored.name)}
-    evidence: list[str] = []
-    try:
-        declared = load_mapping_text(drafts["mapping"])
-        seen = read_declarations(stored, declared)
-        probes = probe_trade_log(stored, declared)
-        drafts["symbology"] = symbology_draft(probes, source_name=stored.name)
-        evidence = evidence_lines(seen, probes, declared_fee=declared.fee_convention.value)
-    except QvalError as exc:
-        drafts["symbology"] = (
-            "# Not drafted. The column mapping above is not usable yet, so nothing\n"
-            "# could be read through it. Settle the columns, then submit to see this.\n"
-            f"# {type(exc).__name__}: {exc}\n"
-            "symbols:"
-        )
-    drafts["config"] = run_config_draft(
-        mapping_path="mapping.yaml", symbology_path="symbology.yaml"
-    )
+    return 200, _document("Quantify setup", _configuration_body(token, stored, header, rows))
 
-    panes = "".join(
-        f"<label>{escape(name)}<small>{escape(hint)}</small>"
-        f'<textarea name="{escape(key)}" rows="{drafts[key].count(chr(10)) + 2}" '
-        f"spellcheck=false>{escape(drafts[key])}</textarea></label>"
-        for key, name, hint in SETUP_FILES
+
+def _configuration_body(
+    token: str,
+    stored: Path,
+    header: list[str],
+    rows: list[list[str]],
+    submitted: Mapping[str, str] | None = None,
+    error: str | None = None,
+) -> str:
+    """Everything the configuration page shows, so a refusal can redisplay it."""
+    found = suggest_columns(header)
+    declared: Declarations | None = None
+    stamps: FormatMatch | None = None
+    probes: tuple[SymbolProbe, ...] = ()
+    try:
+        mapping = load_mapping_text(mapping_draft(header, source_name=stored.name))
+        declared = read_declarations(stored, mapping)
+        probes = probe_trade_log(stored, mapping)
+        with stored.open(newline="", encoding="utf-8", errors="replace") as handle:
+            reader = csv.reader(handle)
+            next(reader, None)
+            index = header.index(mapping.columns["entry_ts"])
+            stamps = matching_formats([row[index] for row in reader if len(row) > index])
+    except (QvalError, ValueError):
+        stamps = matching_formats([])
+
+    warning = (
+        f'<div class="error"><strong>The run was refused.</strong>'
+        f"<code>{escape(error)}</code></div>"
+        if error
+        else ""
     )
-    shown = f"<pre class='evidence'>{escape(chr(10).join(evidence))}</pre>" if evidence else ""
-    return 200, _document(
-        "Quantify setup",
-        "<h1>Three files, drafted</h1>"
-        f"<p class='sub'>From <code>{escape(stored.name)}</code>. Read them before you run: "
-        "every line marked DECIDE is a guess the file could not settle, and a mapping that "
-        "parses can still mean something other than what you have.</p>"
-        f"{shown}"
-        f'<form method="post" action="/finish">'
-        f'<input type="hidden" name="token" value="{escape(token)}">{panes}'
-        "<button type=submit>Validate</button></form>"
-        "<footer>Nothing is written outside a temporary folder, and nothing leaves "
-        "this machine. Save these three files yourself to keep the run reproducible.</footer>",
+    return (
+        "<h1>Configure the run</h1>"
+        f"<p class='sub'>Everything already filled in was read from "
+        f"<code>{escape(stored.name)}</code>. Everything empty is a decision the file "
+        "cannot make for you.</p>"
+        f"{warning}"
+        + render_form(
+            token=token,
+            log_name=stored.name,
+            header=header,
+            rows=rows,
+            suggestion=found,
+            declarations=declared,
+            stamps=stamps,
+            probes=probes,
+            submitted=submitted,
+        )
+        + "<footer>Nothing leaves this machine. The three files this builds are shown "
+        "with the report; keep them, or the run is not reproducible.</footer>"
     )
 
 
 def finish_page(fields: Mapping[str, Upload], scratch: Scratch) -> tuple[int, str]:
-    """Write the three edited files beside the stored log and validate.
+    """Assemble the three files from the form, write them, and validate.
 
-    The files are written because the tool reads configuration from disk and a
-    second code path that read it from memory would be a second thing to keep
-    correct. They are written into the same temporary folder as the log, so the
-    relative ``mapping_path`` and ``symbology_path`` in the run configuration
-    resolve, and they are the person's text unmodified.
+    The files are written because the tool reads configuration from disk, and a
+    second path that read it from memory would be another thing to keep
+    correct. They are shown in full above the report, because under D016 the
+    file is the provenance and a person who cannot keep it cannot reproduce the
+    number they were just given.
     """
-    token = fields.get("token", Upload()).value.strip()
+    plain = {name: upload.value for name, upload in fields.items()}
+    token = plain.get("token", "").strip()
     folder = scratch.folder_of(token)
     log = scratch.log_of(token)
     if folder is None or log is None:
         return 400, form_page(
             error="that upload has expired; the interface keeps only the most recent few"
         )
-
-    for key, filename, _ in SETUP_FILES:
-        text = fields.get(key, Upload()).value
-        if not text.strip():
-            return 400, form_page(error=f"{filename} came back empty")
-        (folder / filename).write_text(text, encoding="utf-8")
+    header, rows, _ = _rows_of(log)
 
     try:
-        run = run_validation(log, folder / "run.yaml")
+        mapping, symbology, run = build_files(plain)
+    except ValueError as exc:
+        return 400, _document(
+            "Quantify setup", _configuration_body(token, log, header, rows, plain, str(exc))
+        )
+
+    for name, text in (("mapping.yaml", mapping), ("symbology.yaml", symbology), ("run.yaml", run)):
+        (folder / name).write_text(text, encoding="utf-8")
+    try:
+        result = run_validation(log, folder / "run.yaml")
     except QvalError as exc:
-        return 400, form_page(error=f"{type(exc).__name__}: {exc}")
-    return 200, render_html(run.report, charts=run.charts)
+        return 400, _document(
+            "Quantify setup",
+            _configuration_body(token, log, header, rows, plain, f"{type(exc).__name__}: {exc}"),
+        )
+
+    kept = "".join(
+        f"<details><summary>{escape(name)}</summary><pre>{escape(text)}</pre></details>"
+        for name, text in (
+            ("mapping.yaml", mapping),
+            ("symbology.yaml", symbology),
+            ("run.yaml", run),
+        )
+    )
+    banner = (
+        f"<div class='keep'><strong>Keep these three files.</strong> They are what makes the "
+        f"report below reproducible; without them it is a number without provenance. "
+        f"See D016.{kept}</div>"
+    )
+    return 200, render_html(result.report, charts=result.charts, prologue=banner)
 
 
 def run_page(fields: Mapping[str, Upload]) -> tuple[int, str]:

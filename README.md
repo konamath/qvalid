@@ -81,8 +81,18 @@ to the strategy.
 
 ```bash
 pip install qvalid
-qvalid ui                                   # drag the log in; the three config files get drafted
+qvalid ui                                   # drag the log in; configure it in the browser
 ```
+
+Drop a CSV on the page and the form arrives filled in from your own file: each field
+pre-selected to the column whose name matched, the cost convention set from the sign of your
+cost column, and the timestamp pattern read from the column itself. That last one is worth
+a note. `08.03.2022` is the eighth of March and also the third of August, so a single stamp
+cannot settle day-first against month-first. Reading the whole column usually can, and when it
+cannot, both readings are shown side by side rather than one being chosen.
+
+The multiplier box stays empty. Your file's own arithmetic is printed next to it, and if the two
+disagree that disagreement is the finding.
 
 Or the same three steps on the command line:
 

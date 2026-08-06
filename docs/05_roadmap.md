@@ -328,6 +328,15 @@ fixture vencedora com a busca que a produziu. Ver D065.
 Ela aprova, e nenhum defeito de assimetria apareceu. Contra zero o Sharpe é quase certo, 0,99931;
 contra a melhor de vinte configurações, 0,87707. Essa diferença é o produto inteiro.
 
+### v1.12 A interface interativa, entregue em 2026-08-05
+
+Controles de verdade no lugar das três caixas de YAML: prévia das linhas do arquivo, um menu por
+campo com as colunas reais, convenções pré-selecionadas a partir da evidência. Ver D066.
+
+O melhor pedaço é que o formato de data passou a ser **lido da coluna inteira**. Uma linha é
+ambígua entre dia-primeiro e mês-primeiro; 240 linhas resolvem. Quando não resolvem, as duas
+leituras são mostradas lado a lado em vez de uma ser escolhida.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

@@ -2216,6 +2216,68 @@ resolução, que é uma pergunta diferente e igualmente importante. Fica a liç�
 
 ---
 
+## D066. Caixa de texto não é interface, e o formato de data é lido do arquivo
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** D063 pôs os três arquivos no navegador como três caixas de YAML. Isso tirou a
+necessidade de achar um modelo e deixou todo o resto no lugar: a pessoa ainda tinha que ler
+comentário para saber quais palavras eram legais, ainda tinha que conhecer `strftime`, e ainda
+tinha que digitar nomes de coluna que não conseguia ver. Caixa de texto é arquivo com outra cor
+de fundo.
+
+**Decisão.** Controles de verdade. Prévia das primeiras linhas do próprio arquivo, um menu por
+campo listando as colunas reais, menus para as convenções pré-selecionados a partir da
+evidência, campos numéricos para os parâmetros de execução. Cada valor que chega preenchido foi
+**lido do arquivo da pessoa**, e cada um que chega vazio é decisão que o arquivo não pode tomar.
+
+**O achado que vale mais: o formato de data é testável.** É a única declaração do mapeamento
+que o arquivo pode confirmar sozinho, porque ou o padrão lê a coluna ou não lê.
+`adapters/timeformats.py` testa candidatos contra **toda a coluna**, não contra a primeira
+linha, e a diferença é grande. Medido na fixture estrangeira:
+
+| entrada | resultado |
+|---------|-----------|
+| só a primeira linha, `08.03.2022` | **ambíguo**, lê como 8 de março sob `%d.%m.%Y` e 3 de agosto sob `%m.%d.%Y` |
+| a coluna inteira, 240 linhas | `%d.%m.%Y %H:%M:%S`, único que casa |
+
+Uma linha com dia acima de doze elimina a leitura mês-primeiro de uma vez. Quando a coluna
+inteira não resolve, a ambiguidade é propriedade real do arquivo e é **relatada com as duas
+leituras lado a lado**, não escolhida. Escolher moveria silenciosamente um trade de março para
+maio, a grade seria construída, toda estatística seria calculada, e nada pareceria errado. É a
+falha que este projeto existe para remover, chegando por uma data em vez de por um preço.
+
+**Um defeito que meu próprio teste pegou.** A primeira lista de candidatos tinha `%m/%d/%Y` mas
+não `%m.%d.%Y`, então data americana com ponto era relatada como casamento único e confiante,
+porque a rival estava ausente da lista onde se procurava. **Detector de ambiguidade só é tão
+honesto quanto os candidatos dele.** Agora um teste exige que todo separador ambíguo carregue as
+duas ordenações.
+
+**Uma autoridade só para o YAML.** `ui/form.py:build_files` monta os três documentos a partir
+dos campos enviados, em Python, no servidor. O script embutido não monta nada: ele destaca dois
+campos disputando uma coluna, mostra e esconde as caixas de texto livre, e trava o botão. Script
+que também montasse YAML seria segunda implementação da configuração, e D063 existe justamente
+porque uma segunda cópia desse tipo de coisa já deu errado uma vez. Um teste lê o corpo do
+script e proíbe que ele contenha `yaml`, `columns:`, `mapping_path` ou `fee_convention:`.
+
+**D016 intacta, e melhor servida.** Os três arquivos aparecem inteiros acima do relatório, com o
+aviso de que sem eles a corrida não é reproduzível. A pasta temporária some; o que a pessoa
+guardar é dela.
+
+**Alternativas descartadas.** Deixar o script montar o YAML ao vivo para pré-visualização,
+descartada pela segunda implementação. Ler o fuso da máquina como padrão, descartada porque o
+mesmo arquivo produziria relatórios diferentes em dois computadores. Preencher o multiplicador
+com o valor implícito, descartada por D007 pela terceira vez. Biblioteca de front por CDN,
+descartada porque contradiz o rodapé que promete que nada sai da máquina.
+
+**Consequência.** Uma recusa devolve o formulário com tudo que já foi respondido, porque perder
+um formulário preenchido por causa de um menu errado é como as pessoas desistem. O caminho
+completo agora é: arrastar o CSV, conferir uma tela em que quase tudo já está certo, preencher
+multiplicador e tick, escolher o fuso, rodar.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
