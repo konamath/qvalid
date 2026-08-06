@@ -337,7 +337,31 @@ class TestStillNoCalculationInTheInterface:
             assert attribute not in source
 
 
-def test_the_landing_page_still_offers_the_guided_route() -> None:
-    page = form_page()
-    assert 'action="/setup"' in page
-    assert "No configuration yet" in page
+class TestTheLandingPageLeadsWithWhatANewArrivalCanDo:
+    """D068. The order was wrong and two people had to look at it to see."""
+
+    def test_the_guided_route_comes_first(self) -> None:
+        """It used to open by asking for a run configuration, which is one of
+        three YAML files nobody has the first time, with the guided route below
+        a rule under the heading "No configuration yet?". The first thing shown
+        was the one thing a new arrival could not do."""
+        page = form_page()
+        assert page.index('action="/setup"') < page.index('action="/run"')
+
+    def test_the_first_thing_asked_for_is_the_only_file_they_certainly_have(self) -> None:
+        page = form_page()
+        head = page[: page.index('action="/run"')]
+        assert 'type="file"' in head
+        assert 'name="config"' not in head
+
+    def test_the_expert_route_survives_and_says_who_it_is_for(self) -> None:
+        """Repeating a run exactly is what the configuration path is for, and
+        it is the reproducibility claim of D016 made usable."""
+        page = form_page()
+        assert "Already have the three files" in page
+        assert 'action="/run"' in page
+
+    def test_a_refusal_still_keeps_the_typed_path(self) -> None:
+        page = form_page({"config": "/tmp/run.yaml"}, error="no such file")
+        assert "/tmp/run.yaml" in page
+        assert "no such file" in page

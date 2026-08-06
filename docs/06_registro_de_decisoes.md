@@ -2332,6 +2332,41 @@ acontece quando o campo volta vazio. Fica como argumento para o que `05` já diz
 
 ---
 
+## D068. A página abria pedindo a única coisa que ninguém tem
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Depois de D067 a pessoa voltou à página inicial e perguntou, literalmente, onde
+devia colocar o arquivo. Havia dois botões de escolher arquivo, e o certo era o de baixo.
+
+A página abria com "point at a trade log **and a run configuration**", um campo de texto pedindo
+o caminho de um YAML, e o botão principal chamado Validate. Isso exige os três arquivos de
+configuração, que na primeira vez ninguém tem, porque eles são justamente o que o resto do
+projeto passou seis versões ajudando a construir. O caminho guiado ficava embaixo de uma linha
+divisória, sob o título "No configuration yet?", com o botão secundário.
+
+Ou seja: **a primeira coisa que a interface mostrava a quem chegava era a única coisa que essa
+pessoa não conseguia fazer.**
+
+**Decisão.** Inverter. A página abre com um campo de arquivo só, o botão diz "Configure and
+validate", e o texto conta o que a próxima tela já vai saber sozinha. Abaixo da divisória fica
+"Already have the three files?", que é a rota para repetir exatamente uma corrida já feita, e
+essa é a reprodutibilidade de D016 virando uso em vez de promessa.
+
+**Consequência, e a lição é a mesma de D067 com outra roupa.** Eu tinha notado essa inversão uma
+vez, olhando uma captura, e ofereci consertar. Não consertei porque não parecia urgente. A
+confirmação veio da forma mais direta possível: alguém perguntando onde clicar. Ordem de página
+não aparece em teste, em cobertura nem em revisão de código, porque nada disso lê uma tela na
+ordem em que um olho lê. **Duas pessoas olhando a mesma tela acharam em dez segundos o que 892
+testes não olham.**
+
+Fica registrado que a ordem é agora afirmada por teste: o formulário guiado tem que aparecer no
+documento antes do formulário de configuração, e o trecho anterior ao segundo não pode conter o
+campo de caminho.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

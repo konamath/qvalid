@@ -344,6 +344,11 @@ Ver D067. O grave: campo numérico obrigatório que voltava vazio virava o valor
 silêncio, então um navegador que recusasse uma vírgula decimal produzia relatório sobre a conta
 errada. O barato: subir o arquivo errado dava dez avisos pequenos em vez de um grande.
 
+### v1.14 A porta certa primeiro, entregue em 2026-08-05
+
+A página inicial abria pedindo a configuração, que na primeira vez ninguém tem, e escondia o
+caminho guiado embaixo. Invertida. Ver D068. Achado por alguém perguntando onde clicar.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

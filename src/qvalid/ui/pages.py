@@ -105,7 +105,14 @@ button[disabled] { opacity: .45; cursor: not-allowed }
 
 
 def form_page(values: Mapping[str, str] | None = None, error: str | None = None) -> str:
-    """Render the form, redisplaying what was typed and what went wrong.
+    """Render the landing page: the guided route first, the expert one below.
+
+    The order is the whole point, and it took two people looking at the screen
+    to see it. This page used to lead with "point at a trade log **and a run
+    configuration**", which asks for three YAML files nobody has the first time,
+    and buried the guided route under a rule and the heading "No configuration
+    yet?". The first thing a new arrival was shown was the one thing they could
+    not do. See D068.
 
     Parameters
     ----------
@@ -123,14 +130,6 @@ def form_page(values: Mapping[str, str] | None = None, error: str | None = None)
     filled = dict(values or {})
     log_name, log_label, log_hint = LOG_FIELD
     config_name, config_label, config_hint = CONFIG_FIELD
-    rows = (
-        f"<label>{escape(log_label)}<small>{escape(log_hint)}</small>"
-        f'<input type="file" name="{log_name}" accept=".csv,text/csv" required></label>'
-        f"<label>{escape(config_label)}<small>{escape(config_hint)}</small>"
-        f'<input type="text" name="{config_name}" '
-        f'value="{escape(filled.get(config_name, ""))}" '
-        f'placeholder="path to the file" required></label>'
-    )
     warning = (
         f'<div class="error"><strong>The run was refused.</strong>'
         f"<code>{escape(error)}</code></div>"
@@ -143,18 +142,27 @@ def form_page(values: Mapping[str, str] | None = None, error: str | None = None)
         "content='width=device-width, initial-scale=1'>"
         f"<style>{_STYLE}</style></head><body><main>"
         "<h1>Quantify</h1>"
-        "<p class='sub'>Point at a trade log and a run configuration. "
-        "Every parameter that changes a number lives in the configuration.</p>"
+        "<p class='sub'>Drop the CSV your platform exported. The next page is filled in from "
+        "your own file: each field matched to the column whose name fits, the cost convention "
+        "read from the sign of your cost column, the date format read from the column itself. "
+        "What it cannot work out, it asks.</p>"
         f"{warning}"
-        f'<form method="post" action="/run" enctype="multipart/form-data">{rows}'
-        "<button type=submit>Validate</button></form>"
-        "<hr style='margin:2.5rem 0;border:0;border-top:1px solid #ccc'>"
-        "<h2 style='font-size:1.1rem'>No configuration yet?</h2>"
-        "<p class='sub'>Upload the log on its own and the three files are drafted for you, "
-        "with the multiplier your own arithmetic implies and every unreadable field marked.</p>"
         '<form method="post" action="/setup" enctype="multipart/form-data">'
-        f'<input type="file" name="{log_name}" accept=".csv,text/csv" required>'
-        "<button type=submit>Draft the configuration</button></form>"
+        f"<label>{escape(log_label)}<small>{escape(log_hint)}</small>"
+        f'<input type="file" name="{log_name}" accept=".csv,text/csv" required></label>'
+        "<button type=submit>Configure and validate</button></form>"
+        "<hr style='margin:3rem 0;border:0;border-top:1px solid #ccc'>"
+        "<h2 style='font-size:1.05rem'>Already have the three files?</h2>"
+        "<p class='hint'>Point at the log and at the run configuration whose hash enters the "
+        "report. This is the route for a run you have done before and want to repeat exactly.</p>"
+        f'<form method="post" action="/run" enctype="multipart/form-data">'
+        f"<label>{escape(log_label)}<small>{escape(log_hint)}</small>"
+        f'<input type="file" name="{log_name}" accept=".csv,text/csv" required></label>'
+        f"<label>{escape(config_label)}<small>{escape(config_hint)}</small>"
+        f'<input type="text" name="{config_name}" '
+        f'value="{escape(filled.get(config_name, ""))}" '
+        f'placeholder="path to the file" required></label>'
+        "<button type=submit>Validate</button></form>"
         "<footer>The report opens in place. Nothing is written outside a temporary "
         "folder and nothing leaves this machine.</footer>"
         "</main></body></html>"
