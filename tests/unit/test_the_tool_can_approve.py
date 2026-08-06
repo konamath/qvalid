@@ -162,3 +162,34 @@ class TestTheFixtureIsWhatItClaims:
     def test_the_sweep_is_aligned_with_the_log_period_for_period(self, report: object) -> None:
         trials = pd.read_csv(FIXTURES / "trials_winner.csv")
         assert len(trials) == report.grid["n_periods"]  # type: ignore[attr-defined]
+
+
+class TestTheDrawdownChartPlotsTheSimulation:
+    """It plotted five numbers and called them a distribution. See D070."""
+
+    def test_it_is_built_from_the_paths_and_not_from_the_summary(self) -> None:
+        """The pipeline used to pass ``distribution.quantiles`` to the
+        histogram, doubled so the bars would not all be one unit tall."""
+        source = (Path(__file__).resolve().parents[2] / "src/qvalid/pipeline.py").read_text()
+        assert "distribution.quantiles[q] for q in sorted" not in source
+        assert "max_drawdown_per_path(paths)" in source
+
+    def test_the_chart_has_the_shape_of_a_distribution(self) -> None:
+        import re
+
+        from qvalid.pipeline import run_validation
+
+        run = run_validation(LOG, CONFIG)
+        svg = next(chart for chart in run.charts if "maximum drawdown" in chart)
+        bars = [float(value) for value in re.findall(r'<rect[^>]*height="([\d.]+)"', svg)]
+        assert len(bars) > 20, "five quantiles cannot describe two thousand paths"
+        assert len(set(bars)) > 5, "equal bars are a summary drawn as a distribution"
+
+    def test_the_axis_says_what_it_counts(self) -> None:
+        from qvalid.pipeline import run_validation
+
+        svg = next(
+            chart for chart in run_validation(LOG, CONFIG).charts if "maximum drawdown" in chart
+        )
+        assert ">paths<" in svg
+        assert ">count<" not in svg, "the counts used to be an artefact of a doubled list"

@@ -51,6 +51,7 @@ from qvalid.core.risk import (
     drawdown_distribution,
     expected_shortfall,
     first_passage,
+    max_drawdown_per_path,
     terminal_return,
     value_at_risk,
 )
@@ -461,12 +462,19 @@ def run_validation(
                 observed=observed_drawdown,
                 confidence_level=config.confidence_level,
             )
+            # The simulated drawdowns themselves, all of them. This used to
+            # histogram the five quantile values, with the list doubled so the
+            # bars would not all be one unit tall, under a y axis labelled
+            # "count" whose counts were an artefact of that doubling. A reader
+            # saw five separated bars and read a multimodal distribution with
+            # gaps in it, while the two thousand paths that were actually
+            # simulated went unplotted. See D070.
             charts.append(
                 histogram(
-                    [distribution.quantiles[q] for q in sorted(distribution.quantiles)] * 2,
-                    title="Simulated maximum drawdown, quantiles",
+                    [float(value) for value in max_drawdown_per_path(paths)],
+                    title="Simulated maximum drawdown",
                     x_label="fraction of peak",
-                    y_label="count",
+                    y_label="paths",
                     marker=observed_drawdown,
                 )
             )

@@ -2420,6 +2420,50 @@ certo há muitas versões e o caminho até ele estava quebrado em sete lugares d
 
 ---
 
+## D070. O gráfico de drawdown desenhava cinco números e chamava de distribuição
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** Primeira corrida completa pelo navegador, olhando o relatório na tela. O gráfico
+"Simulated maximum drawdown, quantiles" mostrava cinco barras separadas por vãos largos, todas
+da mesma altura, sob um eixo vertical chamado `count` indo de 0 a 2. Lido como distribuição,
+dizia que o drawdown desta estratégia é multimodal com buracos. Nenhuma dessas coisas é verdade.
+
+**A causa, no pipeline:**
+
+    histogram(
+        [distribution.quantiles[q] for q in sorted(distribution.quantiles)] * 2,
+        y_label="count",
+    )
+
+Ele fazia histograma dos **cinco valores de quantil**, e multiplicava a lista por dois para as
+barras não saírem todas com altura um. A contagem do eixo era artefato dessa duplicação. Os dois
+mil caminhos simulados existiam, tinham acabado de ser gerados, e não eram plotados.
+
+Vale nomear o que é pior aqui. As outras entradas desta semana são caminhos quebrados até um
+motor correto. Esta é diferente: **o número estava certo e a figura ao lado dele estava errada**,
+e a figura é o que a pessoa olha primeiro. `observed_quantile` dizia 0,5155, honestamente, no
+painel logo acima. Quem olhasse só o gráfico concluiria outra coisa.
+
+**Decisão.** `max_drawdown_per_path(paths)` já existia e o pipeline já tinha os caminhos em mãos.
+O gráfico passa a plotar os dois mil valores, o eixo passa a se chamar `paths`, e o título perde
+a palavra "quantiles" porque não é mais um desenho de quantis. Resultado: 36 barras com a forma
+assimétrica à direita que um máximo drawdown tem, com o observado marcado dentro dela.
+
+**Alternativas descartadas.** Manter os quantis e consertar só o rótulo do eixo, descartada
+porque cinco pontos continuam desenhando vãos que não existem. Aumentar o número de quantis
+pedidos, descartada porque é reinventar histograma pela metade tendo a amostra à mão.
+
+**Consequência, e é a lição que faltava.** As proibições de `04` são todas sobre número: sem
+tolerância escolhida para passar, sem dependência de rede, comparação contra referência a 1e-9.
+Nada disso olha uma figura. `D030` escolheu SVG escrito à mão para o determinismo ser por
+construção, e o determinismo funcionou perfeitamente: o gráfico errado era reproduzível byte a
+byte. Ficam três testes: um estrutural proibindo passar o resumo ao histograma, um exigindo mais
+de vinte barras com alturas diferentes, e um sobre o rótulo do eixo.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

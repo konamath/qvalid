@@ -355,6 +355,12 @@ O formulário de configuração não declarava `enctype`, o navegador postava ur
 só parseava multipart, e todo campo chegava vazio. A pessoa via "upload expirado", que era falso.
 Ver D069. O formulário interativo da v1.12 nunca havia recebido uma submissão real.
 
+### v1.16 O gráfico que desenhava cinco números, entregue em 2026-08-06
+
+Primeira corrida completa pelo navegador. Funcionou, e o relatório trouxe um gráfico de drawdown
+que fazia histograma dos cinco quantis, com a lista duplicada para as barras subirem. Ver D070.
+O número estava certo e a figura ao lado dele estava errada.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.
