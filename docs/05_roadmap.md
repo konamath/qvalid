@@ -383,6 +383,11 @@ D031 chama de bug do pipeline.
 nenhum chamador. Quinta ocorrência do padrão. Ver D074. A seção de regimes deixa de exigir que
 alguém escreva o arquivo de referência à mão.
 
+### v2.4 O agente enxerga o cache, entregue em 2026-08-06
+
+`qvalid mcp` serve o cache local por JSON-RPC sobre stdio, escrito à mão e sem dependência nova.
+Somente leitura, porque escrita é `qvalid fetch` e ela grava manifesto. Ver D075.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

@@ -2709,6 +2709,66 @@ gasto, com estimativa em GB no manifesto **antes** do download, conforme `03` j�
 
 ---
 
+## D075. O agente enxerga o cache, e não pode escrever nele
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** v2.4 do plano. É a integração que o QuantPad vende, "conecte por MCP e o seu agente
+de código consulta os mesmos dados", só que sobre cache próprio, com chave própria, na máquina
+da própria pessoa.
+
+**Escrito à mão, sem dependência nova.** MCP sobre stdio é JSON-RPC 2.0 delimitado por linha, e a
+superfície necessária são três métodos. O projeto já fez essa escolha três vezes com resultado
+bom: `report/svg.py` desenha o próprio SVG por causa do determinismo de D030, `ui/server.py` usa
+`http.server` por D057, e `ui/upload.py` faz o multipart à mão. A promessa de que nada aqui
+alcança a rede vale mais quando é verificável lendo o arquivo, e um teste estrutural agora afirma
+isso por AST em vez de por leitura.
+
+**A forma do módulo é a lição de D069, aplicada antes do erro.** `handle` recebe os bytes de uma
+requisição e devolve os bytes de uma resposta, e é isso que todo teste dirige. D069 aconteceu
+porque a camada entre o fio e o manipulador era a única que nada exercitava, já que todo teste
+chamava as funções de página com um dicionário pronto. Aqui essa camada é a primeira coisa
+testada, com bytes que não são JSON, mensagem que não é JSON-RPC, método desconhecido, e o
+identificador voltando inalterado, que é como um cliente casa resposta com pedido.
+
+**Notificação não recebe resposta.** Mensagem sem `id` é notificação e a especificação diz que
+não se responde. Responder é o que faz um cliente esperar por uma resposta que ele depois não
+consegue casar, e é o tipo de defeito que só aparece com um cliente real.
+
+**Recusa de ferramenta é resultado, não falha de protocolo.** Falha de protocolo diz que o pedido
+estava malformado; chamada recusada diz que o pedido foi entendido e a resposta é não. Colapsar
+as duas diria ao agente que a consulta dele estava errada quando o cache estava apenas vazio.
+
+**Somente leitura, e o motivo é proveniência, não segurança.** `qvalid fetch` grava linha de
+manifesto em toda requisição, inclusive nas que acertam o cache, e é isso que torna um número de
+relatório rastreável até de onde veio e quanto custou. Ferramenta que escrevesse poria dado lá sem
+essa linha, e o manifesto passaria a **ler como completo estando errado**, que D033 chama de pior
+que manifesto nenhum.
+
+**Um teto de honestidade, não de segurança.** `read_series` recusa acima de cinco mil linhas e diz
+quantas existem. Um modelo que recebe duzentas mil linhas resume e reporta o resumo como se
+tivesse lido a série; acima do teto o caminho é `qvalid fetch --out` e um arquivo, que é o que a
+própria documentação do QuantPad diz sobre dado volumoso sair por arquivo e não pelo protocolo.
+
+**Um teste meu errado, e é D059 de novo.** Escrevi o teste de fronteira proibindo as sequências
+`urlopen`, `requests`, `socket` no fonte, e ele acusou o campo `requests` do payload de cobertura,
+que conta linhas de manifesto. Proibir sequência de caracteres pega a sintaxe e erra o alvo, que é
+exatamente o que D059 registrou ao proibir um operador e acusar uma junção de caminho. Passou a
+verificar por AST: nenhum import de módulo de rede, nenhuma chamada a método que escreve.
+
+**Alternativas descartadas.** Usar o pacote `mcp`, descartada porque é dependência permanente para
+três métodos e retiraria a verificabilidade da promessa de rede. Expor ferramenta de busca que
+baixa, descartada pelo argumento de proveniência acima. Devolver a série inteira sem teto,
+descartada pelo argumento de honestidade.
+
+**Consequência.** Este chat e o Claude Code passam a poder perguntar o que existe no cache, ler
+uma série como nível ou como retorno, e conferir os hashes. `qvalid mcp --cache DIR` é o comando.
+Fica anotado que o servidor não autentica ninguém e serve por stdio ao processo que o iniciou, o
+que é o mesmo modelo de confiança da interface local em D057.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

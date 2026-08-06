@@ -291,6 +291,33 @@ def probe(
 
 
 @app.command()
+def mcp(
+    cache_dir: Path = typer.Option(..., "--cache", help="The cache to serve, read only."),
+) -> None:
+    """Serve the local cache to an agent over MCP, on stdin and stdout. See D075.
+
+    This is the integration QuantPad sells: a coding agent that can query the
+    same market data your research uses. Over your own cache, with your own key,
+    on your own machine.
+
+    Read only. Writing is ``qvalid fetch``, which records a manifest line for
+    every request including the ones that hit, and a tool that wrote would put
+    data in the cache with no such line. A manifest with a hole reads as
+    complete, which D033 calls worse than no manifest.
+
+    Point a client at it with a command like::
+
+        qvalid mcp --cache ~/.qvalid/cache
+    """
+    from qvalid.mcp.server import serve_stdio
+
+    if not cache_dir.is_dir():
+        typer.echo(f"no cache at {cache_dir}; create one with `qvalid fetch`", err=True)
+        raise typer.Exit(code=2)
+    serve_stdio(cache_dir)
+
+
+@app.command()
 def ui(
     port: int = typer.Option(8765, help="Port on the loopback interface."),
     open_browser: bool = typer.Option(True, "--open/--no-open", help="Open a browser."),
