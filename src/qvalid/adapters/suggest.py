@@ -24,6 +24,7 @@ Sharpe.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Final
 
@@ -144,7 +145,7 @@ class Suggestion:
         return not self.missing and not self.ambiguous
 
 
-def suggest_columns(header: list[str] | tuple[str, ...]) -> Suggestion:
+def suggest_columns(header: Sequence[str]) -> Suggestion:
     """Propose a column mapping from a header row.
 
     Parameters

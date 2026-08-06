@@ -2048,6 +2048,60 @@ ninguém construiu para o teste pode achar o que eu nem sei procurar.
 
 ---
 
+## D063. A interface baixava o atrito errado
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** D057 entregou `qvalid ui` para que ninguém precisasse digitar o caminho de um
+arquivo. Só que o caminho nunca foi a parede. Quem chega com um CSV e mais nada continuava tendo
+que escrever três YAML à mão antes de qualquer número aparecer, e a interface, cuja razão de
+existir era reduzir atrito, reduzia o menor deles. D060 e D061 resolveram isso na linha de
+comando e a interface ficou para trás.
+
+**Decisão.** `POST /setup` recebe o log sozinho e devolve os três arquivos rascunhados em caixas
+editáveis, com a evidência do `probe` ao lado: multiplicador implícito, sinal da coluna de
+custos contra o que o mapeamento declara, e o primeiro timestamp verbatim contra o formato
+declarado. A pessoa corrige e `POST /finish` roda. Os três arquivos vão para uma pasta
+temporária junto do log, porque a ferramenta lê configuração de disco e um segundo caminho de
+código que lesse da memória seria mais uma coisa para manter correta.
+
+**A parte que importa, e é sobre duplicação.** Os rascunhos moravam dentro de `cli.py` como
+sequências de `typer.echo`. A interface precisava do mesmo texto, e uma segunda cópia de prosa
+que nomeia valores de enumeração é garantia de divergência: D062 foi exatamente um comentário
+nomeando um valor inexistente, achado só porque alguém percorreu um arquivo de verdade, e duas
+cópias dobram essa superfície. O texto foi extraído para `qvalid/drafts.py`, e um teste afirma
+que o navegador mostra **os mesmos bytes** que o `inspect` imprime. Outro teste exige que uma
+frase característica de rascunho exista em exatamente um módulo.
+
+**Estado entre dois pedidos.** A symbology não pode ser rascunhada antes de as colunas estarem
+resolvidas, porque recuperar multiplicador exige ler preços e quantidades através do mapeamento.
+Logo são dois pedidos, e o arquivo precisa sobreviver à resposta que mostrou o primeiro rascunho.
+`ui/scratch.py` guarda uma pasta por upload, nomeada por token não adivinhável, com teto de
+dezesseis e remoção da mais antiga. Não é sessão, cookie nem banco: é a máquina da própria
+pessoa, o servidor escuta só no loopback, e tudo some quando o processo termina. O token é
+conferido contra a lista que o objeto mantém, e não procurando no disco, então um token com
+separadores não descreve rota para pasta nenhuma.
+
+**Um defeito real, achado por um teste que eu escrevi para outra coisa.** Um CSV só com
+cabeçalho fazia `read_declarations` estourar `IndexError` cru do pandas no primeiro `iloc[0]`.
+`IndexError` não é `QvalError`, então todo chamador que prometia responder arquivo ruim com
+recusa respondia com traceback. É o modo de falha não tipado que D021 baniu na fronteira
+inferior de `resample`, reaparecido em outro módulo. Agora levanta `SchemaError`.
+
+**Alternativas descartadas.** Gravar os três arquivos automaticamente depois do rascunho,
+descartada por D016: o arquivo que vira proveniência tem que ser o que a pessoa escolheu. Manter
+o log em memória entre os dois pedidos, descartada porque a ferramenta lê de disco e a segunda
+via de leitura seria dívida. Esconder cada arquivo até o anterior estar pronto, descartada
+porque um assistente que esconde a próxima pergunta torna invisível o tamanho do trabalho.
+
+**Consequência.** Chegar com um CSV e sair com um relatório passa a ser: arrastar o arquivo,
+ler três caixas, corrigir o que está marcado `DECIDE`, e rodar. O rodapé continua dizendo que a
+pessoa deve salvar os três arquivos por conta própria, porque a pasta temporária some e sem eles
+a corrida não é reproduzível, que é o ponto inteiro de D016.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

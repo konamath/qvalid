@@ -385,6 +385,11 @@ def read_declarations(path: str | Path, mapping: ColumnMapping) -> Declarations:
     inference D016 refused.
     """
     frame = pd.read_csv(Path(path))
+    if frame.empty:
+        # Without this the first ``iloc[0]`` raises a bare IndexError from
+        # pandas, which is not a QvalError, so every caller that promised to
+        # answer a bad file with a refusal answers with a traceback instead.
+        raise SchemaError(f"{Path(path).name} has a header but no rows")
     raw = frame[mapping.columns["fees"]].to_numpy(dtype=np.float64)
     if not np.any(raw != 0.0):
         sign, implied = "ZERO", None

@@ -62,6 +62,7 @@ __all__ = [
     "PnlSource",
     "RowLayout",
     "load_mapping",
+    "load_mapping_text",
     "read_trade_log_csv",
 ]
 
@@ -377,18 +378,43 @@ def load_mapping(path: str | Path) -> ColumnMapping:
     file_path = Path(path)
     if not file_path.is_file():
         raise SchemaError(f"column mapping not found at {file_path}")
+    return load_mapping_text(file_path.read_text(encoding="utf-8"), origin=str(file_path))
+
+
+def load_mapping_text(text: str, *, origin: str = "the submitted text") -> ColumnMapping:
+    """Validate a column mapping that is not on disk yet. See D063.
+
+    The browser drafts a mapping and shows it in a box before anyone has
+    decided to keep it, so it has to be checked without being saved. D016 is
+    untouched: the mapping that reaches a report is still a file whose hash is
+    provenance, and this only lets a draft be tested before it becomes one.
+
+    Parameters
+    ----------
+    text : str
+        YAML.
+    origin : str, optional
+        What to call the source in an error message.
+
+    Returns
+    -------
+    ColumnMapping
+
+    Raises
+    ------
+    SchemaError
+        Malformed YAML, not a mapping, or any field failing validation.
+    """
     try:
-        raw: Any = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+        raw: Any = yaml.safe_load(text)
     except yaml.YAMLError as exc:
-        raise SchemaError(f"column mapping at {file_path} is not valid YAML: {exc}") from exc
+        raise SchemaError(f"column mapping at {origin} is not valid YAML: {exc}") from exc
     if not isinstance(raw, dict):
-        raise SchemaError(
-            f"column mapping at {file_path} must be a mapping, got {type(raw).__name__}"
-        )
+        raise SchemaError(f"column mapping at {origin} must be a mapping, got {type(raw).__name__}")
     try:
         return ColumnMapping.model_validate(raw)
     except ValidationError as exc:
-        raise SchemaError(f"column mapping at {file_path} is invalid: {exc}") from exc
+        raise SchemaError(f"column mapping at {origin} is invalid: {exc}") from exc
 
 
 def _pair_legs(frame: pd.DataFrame, mapping: ColumnMapping) -> pd.DataFrame:

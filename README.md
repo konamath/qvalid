@@ -60,9 +60,15 @@ letter is the defect the tool exists to correct.
 
 ```bash
 pip install qvalid
+qvalid ui                                   # drag the log in; the three config files get drafted
+```
+
+Or the same three steps on the command line:
+
+```bash
 qvalid inspect trades.csv                   # a column mapping to start from
+qvalid probe trades.csv -m mapping.yaml     # a symbology, with the multiplier your file implies
 qvalid validate trades.csv --config run.yaml --out report.html
-qvalid ui                                   # drag the log in, in a browser
 ```
 
 `inspect` reads the header of your export and prints a mapping, marking what it could not

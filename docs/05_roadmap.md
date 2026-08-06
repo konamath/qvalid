@@ -303,6 +303,15 @@ defeitos passaram por 801 testes com cobertura acima da meta, ruff e mypy limpos
 ainda foi fabricado por quem escreveu o teste, e só um arquivo que ninguém construiu para passar
 pode achar o que não se sabe procurar.
 
+### v1.9 A interface guiada, entregue em 2026-08-05
+
+`POST /setup` recebe o log sozinho e devolve os três arquivos rascunhados com a evidência do
+`probe` ao lado. Ver D063. Os rascunhos saíram de dentro do `cli.py` para `drafts.py`, com teste
+afirmando que navegador e linha de comando emitem os mesmos bytes.
+
+A etapa 1 de v1.1 agora cobre de fato o que prometia. A etapa 2, aplicação servida com fila,
+continua condicionada a semanas de uso real, e o uso real continua sendo o que falta.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

@@ -23,7 +23,8 @@ from __future__ import annotations
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from qvalid.ui.pages import form_page, run_page
+from qvalid.ui.pages import finish_page, form_page, run_page, setup_page
+from qvalid.ui.scratch import Scratch
 from qvalid.ui.upload import parse_multipart
 
 __all__ = ["serve"]
@@ -45,8 +46,17 @@ server becomes a way to exhaust the machine's memory, and no export of closed
 trades reaches this size."""
 
 
+_SCRATCH = Scratch()
+"""One store per process, because guided setup spans two requests.
+
+Module level rather than per handler: :class:`~http.server.BaseHTTPRequestHandler`
+is instantiated once per connection, so a store held on the handler would lose
+the upload the moment the browser opened a second connection, which it does.
+"""
+
+
 class _Handler(BaseHTTPRequestHandler):
-    """Route two paths onto the two functions in :mod:`qvalid.ui.pages`."""
+    """Route the paths onto the functions in :mod:`qvalid.ui.pages`."""
 
     protocol_version = "HTTP/1.1"
 
@@ -58,8 +68,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._respond(404, form_page(error=f"no page at {self.path}"))
 
     def do_POST(self) -> None:
-        """Run a validation and return the report."""
-        if self.path != "/run":
+        """Dispatch a submission to the page that answers it."""
+        if self.path not in ("/run", "/setup", "/finish"):
             self._respond(404, form_page(error=f"no page at {self.path}"))
             return
         declared = int(self.headers.get("Content-Length") or 0)
@@ -69,7 +79,13 @@ class _Handler(BaseHTTPRequestHandler):
             )
             return
         body = self.rfile.read(declared)
-        status, page = run_page(parse_multipart(body, self.headers.get("Content-Type", "")))
+        fields = parse_multipart(body, self.headers.get("Content-Type", ""))
+        if self.path == "/run":
+            status, page = run_page(fields)
+        elif self.path == "/setup":
+            status, page = setup_page(fields, _SCRATCH)
+        else:
+            status, page = finish_page(fields, _SCRATCH)
         self._respond(status, page)
 
     def log_message(self, format: str, *args: object) -> None:
