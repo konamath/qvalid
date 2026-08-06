@@ -328,7 +328,7 @@ def render_form(
         )
 
     return (
-        f'<form method="post" action="/finish" id="config">'
+        '<form method="post" action="/finish" id="config" enctype="multipart/form-data">'
         f'<input type="hidden" name="token" value="{escape(token)}">'
         f"<h2>Your file</h2><p class='hint'>First rows of "
         f"<code>{escape(log_name)}</code>, so the names below mean something.</p>"
@@ -389,6 +389,14 @@ def render_form(
         f"<h2>Contract</h2>{symbols}"
         f"<h2>How you want to be judged</h2><p class='hint'>None of this is in your trade log."
         "</p>{}".format(run)
+        + "<h2>The search that produced this</h2>"
+        "<p class='hint'>Without these two the verdict is suppressed, because a Sharpe that has "
+        "not been corrected for the search that found it is not comparable with one that has. "
+        "Build the matrix with <code>qvalid trials var_*.csv -c run.yaml -o trials.csv</code> "
+        "from the logs of every variant you tried. See D004 and D072.</p>"
+        "<label>Trial matrix <em>optional</em><small>one column per configuration, on this "
+        "same grid</small>"
+        '<input type="file" name="trials" accept=".csv,text/csv"></label>'
         + "<button type=submit>Validate</button></form>"
         f"<script>{_SCRIPT}</script>"
     )
@@ -504,4 +512,6 @@ def build_files(fields: Mapping[str, str]) -> tuple[str, str, str]:
                 )
             continue
         run.append(f"{name}: {value}")
+    if fields.get("trials_path", "").strip():
+        run.append(f"trials_path: {fields['trials_path'].strip()}")
     return mapping, symbology, "\n".join(run)

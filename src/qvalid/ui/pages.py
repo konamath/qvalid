@@ -315,6 +315,13 @@ def finish_page(fields: Mapping[str, Upload], scratch: Scratch) -> tuple[int, st
         )
     header, rows, _ = _rows_of(log)
 
+    matrix = fields.get("trials", Upload())
+    if matrix.is_file and matrix.content:
+        # Written beside the log so the relative trials_path in the run
+        # configuration resolves, exactly as the two YAML files do.
+        (folder / "trials.csv").write_bytes(matrix.content)
+        plain["trials_path"] = "trials.csv"
+
     try:
         mapping, symbology, run = build_files(plain)
     except ValueError as exc:

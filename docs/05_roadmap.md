@@ -361,6 +361,16 @@ Primeira corrida completa pelo navegador. Funcionou, e o relatório trouxe um gr
 que fazia histograma dos cinco quantis, com a lista duplicada para as barras subirem. Ver D070.
 O número estava certo e a figura ao lado dele estava errada.
 
+## Ciclo v2
+
+Escopo decidido em D071 e detalhado em `docs/08`: validador, não plataforma, uso próprio.
+
+### v2.1 A matriz de tentativas sai da busca, entregue em 2026-08-06
+
+`qvalid trials var_*.csv -c run.yaml -o trials.csv` constrói a matriz a partir dos logs das
+variantes, e o navegador ganha onde recebê la. O veredito deixa de ser inalcançável pela
+interface. Ver D072.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

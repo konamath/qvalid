@@ -2464,6 +2464,117 @@ de vinte barras com alturas diferentes, e um sobre o rótulo do eixo.
 
 ---
 
+## D071. Validador e não plataforma, e o que muda por ser de uso próprio
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** A comparação com o QuantPad levantou a pergunta de escopo. Ver `docs/08` para a
+análise completa. Duas coisas foram decididas juntas: **validador e não plataforma**, e
+**usuário único, o próprio autor**.
+
+**A medição que reordenou a decisão.** Antes de comparar com qualquer coisa, no próprio
+repositório: `core/propfirm.py` tem duas funções públicas e o pipeline chama zero;
+`superior_predictive_ability` idem. A seção 6 inteira de `02` e o teste de Hansen (2005) da
+seção 3 estão construídos, especificados e testados, e nenhum usuário alcança. É a terceira e a
+quarta ocorrência do defeito que D052 e D056 já acharam. Comparar com concorrente antes de ligar
+o que existe é comprar terreno com cômodo vazio dentro de casa.
+
+**Decisão de escopo.** Fica fora, e cada item exige revogação explícita desta entrada para
+voltar: motor de backtest, agente de IA, geração de código em DSL de plataforma, nuvem, contas,
+comunidade, assinatura de dado ao vivo, e cadeia de opções com o que ela permite, incluindo
+superfície de volatilidade. Esta última já estava fora por `03`, e o obstáculo real dela é
+licença de redistribuição e não matemática.
+
+**O argumento estrutural, que vale mesmo sem concorrência.** Um validador que também gera a
+estratégia deixa de ser independente daquilo que julga. Construir backtester aqui destruiria a
+única coisa que a arquitetura do concorrente não pode ter, e destruiria de graça.
+
+**O que muda por ser de uso próprio, e é a parte que importa.** O argumento de independência
+acima é sobre terceiros e não se aplica: **o autor é quem tentou as configurações**. Declarar
+`n_trials` deixa de ser garantia contra alguém e vira disciplina contra si mesmo, que é o risco
+de fato relevante, porque quem varre vinte parâmetros e reporta o melhor engana primeiro a si.
+D004 fica ainda mais necessária, não menos.
+
+Consequências concretas de escopo:
+
+- **Legibilidade cai de prioridade.** O relatório é ilegível para leigo e perfeitamente legível
+  para quem implementou ponderação CPT e cauda GPD. Tradução de números vira conveniência, não
+  requisito. Fica só a linha de cobertura, que é auxílio de varredura e não tradução.
+- **Regra de mesa proprietária não vem empacotada.** Nada de Topstep, Apex ou Take Profit Trader
+  no repositório: entra a mecânica de carregar regra de arquivo, com um exemplo, e a regra que
+  interessa é a da mesa que o autor de fato usa.
+- **Comparar estratégias entre si sobe de prioridade**, porque é a pergunta diária de quem valida
+  as próprias variantes, e `verdict.rank` já existe para isso.
+- **Nada de multiusuário, autenticação ou multilocação.** A promessa de que nada sai da máquina
+  passa a ser fato estrutural em vez de argumento de venda.
+
+**Alternativas descartadas.** Plataforma, descartada por serem quatro produtos, cada um maior que
+o atual, com o dado sendo barreira de licenciamento antes de engenharia. Meio termo com backtest
+embutido e validação, descartada pelo argumento estrutural acima.
+
+**Consequência.** Nenhuma decisão anterior é revogada por esta escolha, e isso é evidência de que
+as setenta entradas anteriores já apontavam para cá: a pressão para alargar vinha da comparação,
+não do produto.
+
+---
+
+## D072. A matriz de tentativas passa a sair da busca, e não de um formulário
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** Primeira versão do ciclo v2, priorizada por D071. A deflação de `02` seção 3 precisa
+da dispersão **entre** os Sharpe das tentativas, então contagem declarada não basta, e D004 recusa
+inventar o resto. Consequência prática: o veredito, que é a conclusão que dá nome à ferramenta,
+exigia um artefato que a ferramenta não sabia produzir. Pelo navegador ele era **inalcançável**,
+o que só ficou visível quando alguém percorreu a interface inteira.
+
+**Decisão.** `qvalid trials var_*.csv -c run.yaml -o trials.csv`. Quem varreu vinte valores de
+parâmetro tem vinte logs; isso os transforma no artefato que a deflação quer. É o ponto inteiro:
+o insumo que decide se um Sharpe sobrevive à própria busca deve vir **da busca**, não de um número
+digitado num campo.
+
+Mais o campo de matriz no formulário do navegador, que por carregar arquivo passa a declarar
+`multipart/form-data`, conforme a regra que D069 deixou.
+
+**Uma grade, escolhida uma vez.** D024 tornou "mesma grade para toda configuração" estrutural em
+vez de verificada, porque comparar Sharpe entre grades é erro de unidade. O período é escolhido
+pela escada sobre o **log de referência**, o primeiro da lista, e forçado nos demais. A escolha é
+impressa, porque grade escolhida em silêncio é parâmetro que ninguém declarou.
+
+**Janelas são intersectadas, nunca preenchidas.** Variantes de uma estratégia raramente começam e
+terminam no mesmo dia. Dentro do próprio vão de uma variante, período vazio é retorno zero, que é
+a convenção de D011 e está correta: capital alocado, nada operado. **Fora** dele, período não é
+zero, é ausência, e preencher com zero diria à deflação que uma configuração ficou parada durante
+meses em que ela nunca rodou. Então a janela comum é a interseção, o aparo é relatado por
+configuração, e interseção abaixo de `MIN_PERIODS` é recusada com os números em vez de devolvida.
+
+**Um erro meu, e ele fixa uma convenção.** Escrevi o teste de equivalência comparando o Sharpe da
+coluna sob `ddof=1` contra o `observed_sharpe` do relatório. Diferiram por 1,000658, que é
+exatamente `sqrt(T/(T-1))` em `T = 760`. Não era defeito: é D014, que reporta a estimativa pontual
+sob a convenção populacional. O teste passou a comparar o par certo, e ganhou um irmão que fixa a
+razão entre as duas convenções, de modo que a distinção deixa de ser tácita.
+
+**Um cuidado de fixture que vale registrar.** A primeira geração de variantes escalava o mesmo log
+por uma constante. Toda variante vira transformação monótona dos mesmos trades, o vencedor dentro
+da amostra é o vencedor fora por construção, e o PBO crava zero contra o próprio teto de
+`log(N)`, que é o erro 2 de D025 aparecendo por outro caminho. As variantes do teste passaram a
+levar ruído independente, e um teste exige que a mediana do logit fique **abaixo** do teto, de
+modo que uma fixture degenerada não passe despercebida.
+
+**Alternativas descartadas.** Preencher com zero fora do vão da variante, descartada pelo motivo
+acima. Reamostrar as séries para uma grade comum, descartada porque introduziria interpolação num
+insumo que decide veredito. Aceitar `n_trials` sem matriz, descartada porque a variância entre
+tentativas não é derivável de um log só, e D004 proíbe fabricá la.
+
+**Consequência.** Verificado de ponta a ponta: vinte variantes viram matriz de 753 períodos com o
+aparo relatado, e pelo navegador o veredito sai `RAN` com equivalente certeza positivo em vez de
+suprimido. A seção que `02` chama de a que separa este projeto de uma planilha de métricas passa a
+ser alcançável por quem apenas guardou os logs das próprias tentativas.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

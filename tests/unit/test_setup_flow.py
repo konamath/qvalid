@@ -450,3 +450,31 @@ class TestTheLandingPageLeadsWithWhatANewArrivalCanDo:
         page = form_page({"config": "/tmp/run.yaml"}, error="no such file")
         assert "/tmp/run.yaml" in page
         assert "no such file" in page
+
+
+class TestTheBrowserCanNowReachTheVerdict:
+    """The gap D072 closes: the conclusion the tool is named for was
+    unreachable from the interface that v1.16 had just finished building."""
+
+    def test_the_form_offers_somewhere_to_put_the_trial_matrix(self, scratch: Scratch) -> None:
+        page = setup_page(upload(), scratch)[1]
+        assert 'name="trials"' in page
+        assert "qvalid trials" in page, "and says how to build one"
+
+    def test_the_configuration_form_declares_multipart_now_that_it_carries_a_file(
+        self, scratch: Scratch
+    ) -> None:
+        """D069's rule, applied to the field this version adds."""
+        page = setup_page(upload(), scratch)[1]
+        opening = re.search(r'<form[^>]*id="config"[^>]*>', page)
+        assert opening and "multipart/form-data" in opening.group(0)
+
+    def test_an_uploaded_matrix_reaches_the_run_configuration(self) -> None:
+        _, _, run = build_files({**ANSWERS, "trials_path": "trials.csv", "n_trials": "20"})
+        assert "trials_path: trials.csv" in run
+        assert "n_trials: 20" in run
+
+    def test_and_no_matrix_leaves_the_configuration_without_the_key(self) -> None:
+        """Absent, not empty: a path that points at nothing is worse than none."""
+        _, _, run = build_files(ANSWERS)
+        assert "trials_path" not in run

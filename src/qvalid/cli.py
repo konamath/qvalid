@@ -123,6 +123,50 @@ def inspect(
 
 
 @app.command()
+def trials(
+    logs: list[Path] = typer.Argument(..., help="One trade log per configuration tested."),
+    config: Path = typer.Option(..., "--config", "-c", help="Run configuration, YAML."),
+    out: Path = typer.Option(..., "--out", "-o", help="Where to write the matrix."),
+) -> None:
+    """Build the matrix of every configuration tested, from the logs. See D072.
+
+    The deflation of ``02`` section 3 needs the dispersion across trial Sharpe
+    ratios, so a declared count is not enough, and D004 refuses to invent the
+    rest. Anyone who swept twenty parameter values has twenty logs; this turns
+    them into the artefact the deflation wants.
+
+    The first log is the reference. Its grid is selected by the ladder and
+    forced on the others, because D024 makes one grid for every configuration a
+    structural precondition rather than something checked afterwards.
+    """
+    from qvalid.trials import build_trials
+
+    missing = [str(path) for path in [*logs, config] if not path.is_file()]
+    if missing:
+        typer.echo(f"not found: {', '.join(missing)}", err=True)
+        raise typer.Exit(code=2)
+    try:
+        built = build_trials(logs, config)
+    except QvalError as exc:
+        typer.echo(f"{type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    out.write_text(built.to_csv(), encoding="utf-8")
+    typer.echo(f"wrote {out}")
+    typer.echo(
+        f"{len(built.names)} configurations on a {built.period.value} grid of "
+        f"{built.n_periods} periods, taken from {built.names[0]}"
+    )
+    if built.worst_trim:
+        losers = {name: total for name, (a, b) in built.trimmed.items() if (total := a + b)}
+        typer.echo(
+            f"trimmed to the window all {len(built.names)} share: "
+            f"{len(losers)} configuration(s) lost periods, at most {built.worst_trim}. "
+            "A period outside a configuration's own span is an absence, not a zero return."
+        )
+
+
+@app.command()
 def probe(
     log: Path = typer.Argument(..., help="CSV trade log."),
     mapping: Path = typer.Option(..., "--mapping", "-m", help="Column mapping, YAML."),
