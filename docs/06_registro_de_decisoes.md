@@ -1907,6 +1907,84 @@ existindo. Um cabeçalho que o módulo não conhece produz `NOT FOUND`, que é a
 
 ---
 
+## D061. O multiplicador é recuperável do arquivo, e o ponto cego de D017 tem coordenada
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Refina.** D017
+
+**Contexto.** D060 derrubou a primeira das três paredes, o mapeamento de colunas. Restava a
+symbology, que exige multiplicador e tick por símbolo. D007 recusou assumir multiplicador 1 na
+ausência, porque erra futuros por ordens de grandeza sem levantar nada, e essa recusa continua
+válida. Mas a identidade de coerência de `01`,
+
+    pnl = side * (exit_px - entry_px) * qty * multiplicador - fees
+
+roda para trás. `adapters/probe.py` a inverte e devolve o multiplicador que o próprio arquivo
+implica, por trade. `qvalid probe log.csv -m mapping.yaml` imprime a symbology com esse valor
+**ao lado de um campo vazio**, nunca dentro dele: número tirado do mesmo arquivo que ele depois
+vai validar não é evidência independente, e a serventia dele é discordar da declaração quando a
+declaração está errada.
+
+**O achado principal.** D017 afirmou que líquido contra bruto é a única declaração que a
+identidade não verifica, porque declarar `NET` sobre coluna bruta deixa resíduo de exatamente um
+custo por trade, abaixo da tolerância de uma tick. Isso está correto sobre um **teste por trade
+com tolerância** e incompleto sobre o arquivo. Sob a convenção errada o multiplicador implícito
+vale `m -/+ fees / (side * (exit_px - entry_px) * qty)`, e o segundo termo varia com o tamanho do
+movimento de cada trade. A convenção errada portanto produz multiplicador **espalhado** onde a
+certa produz constante, e o espalhamento é visível sem nenhum trade violar tolerância alguma. Na
+fixture de 760 trades: dispersão 0,0 sob `NET` contra 2,3e-2 sob `GROSS`, e o multiplicador sai
+50,0 exato.
+
+O ponto cego não some, ele muda de lugar, e a afirmação nova é mais afiada e verificável: **a
+convenção é recuperável exatamente enquanto o custo por trade exceder o arredondamento da coluna
+de P&L.** Medido, varrendo custo sobre quantum, como razão entre a dispersão sob a convenção
+errada e sob a certa:
+
+| custo/quantum | 0,06 | 0,13 | 0,32 | 0,63 | 1,26 | 3,15 | 6,30 | 12,60 |
+|---------------|------|------|------|------|------|------|------|-------|
+| razão (pior)  | 1,0  | 0,0  | 1,0  | 2,0  | 4,0  | 10,8 | 17,9 | 26,8  |
+
+A transição fica entre 0,32 e 0,63. `COST_TO_QUANTUM_FLOOR` fixa 1,0, o redondo acima com
+margem. Abaixo do piso a aritmética não é ruidosa, é destruída: subtrair um custo menor que o
+passo de arredondamento da coluna de onde ele é subtraído não recupera nada, e
+`Detectability.UNDETECTABLE` diz isso em vez de responder. Custo zero cai em `NO_COST`, que é o
+caso degenerado que a própria D017 já nomeava.
+
+**Segunda medição, que corrigiu uma afirmação minha.** Escrevi um teste dizendo que o
+multiplicador sobrevive ao arredondamento grosseiro dentro de 1e-3. Reprovou: o erro real é
+1,1e-2. A convenção morre primeiro porque monta no custo; o multiplicador monta no P&L inteiro e
+morre depois, mas morre. Erro relativo contra um 50 verdadeiro, doze sementes:
+
+| quantum / P&L típico | 0,002  | 0,023  | 0,200  | 0,333  | 0,500  | 1,000 |
+|----------------------|--------|--------|--------|--------|--------|-------|
+| erro (pior)          | 1,4e-4 | 1,1e-3 | 1,1e-2 | 2,4e-2 | 6,5e-2 | 9,2e-1|
+
+`MULTIPLIER_QUANTUM_CEILING` fixa 0,25, onde o pior caso fica perto de dois por cento, o
+suficiente para distinguir 50 de 20 e insuficiente para ser confundido com especificação. Acima
+disso `implied` vira `nan` e o comando escreve `NOT READABLE`, porque multiplicador errado por
+ordem de grandeza que ainda parece número é exatamente o que D007 existe para impedir.
+
+**Um defeito real encontrado por teste.** `quantum_of` procurava só potências de dez menores que
+um, então coluna arredondada à centena era lida como quantum 1,0, e o portão comparava um custo
+real contra um arredondamento cem vezes mais fino que o verdadeiro, declarando decisivo
+justamente o caso que o portão existe para recusar. A busca passou a ir do grosso ao fino e a
+devolver o **maior** passo que divide tudo.
+
+**Alternativas descartadas.** Preencher o multiplicador com o valor implícito, descartada por
+D007 e porque fecharia o ciclo de validar o arquivo contra um número tirado dele. Decidir
+detectabilidade por arquivo em vez de por símbolo, descartada porque quem opera um instrumento
+sem corretagem e um futuro tem um de cada, e um veredito único exportaria a confiança do caso
+respondível para o irrespondível. Passar por `read_trade_log`, descartada por circularidade: ela
+exige a symbology que este comando existe para ajudar a escrever.
+
+**Consequência.** A segunda das três paredes cai. `run_config.yaml` continua escrito à mão, e é
+o que sobra, mas ele é todo escolha da pessoa e nenhum campo dele é adivinhável a partir do
+arquivo. D017 fica refinada e não revogada: a redação dela sobre o teste por trade continua
+literalmente correta.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

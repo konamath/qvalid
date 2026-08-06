@@ -78,6 +78,23 @@ columns:
 It prints and never saves. The mapping records which column was read as what, which is what
 lets somebody else reproduce a number, so the file has to be one you chose. See D060.
 
+`probe` then reads your numbers and inverts the P&L identity to recover what multiplier each
+symbol implies, printing it beside an empty slot rather than into it:
+
+```yaml
+symbols:
+  ESZ4:
+    multiplier:   # implied 50, from 745 trades
+#   ESZ4: consistent with pnl_convention: NET (spread 0.0e+00 against 2.3e-02 for the other)
+```
+
+That last line is worth a note. Whether a P&L column is net or gross of costs was documented
+here as undetectable, because the error leaves a residual of exactly one fee per trade and no
+single trade breaks any tolerance. Across trades it is detectable after all: under the wrong
+convention the implied multiplier scatters, under the right one it is constant. The limit is
+measured rather than assumed. Once costs fall below the rounding of the P&L column the
+difference is gone, and `probe` says so instead of answering. See D061.
+
 Developing it rather than using it? Install from the checkout so the `qvalid` command is the
 code you are editing, and not a copy from PyPI under the same name:
 

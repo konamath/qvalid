@@ -146,6 +146,74 @@ def inspect(
 
 
 @app.command()
+def probe(
+    log: Path = typer.Argument(..., help="CSV trade log."),
+    mapping: Path = typer.Option(..., "--mapping", "-m", help="Column mapping, YAML."),
+) -> None:
+    """Recover the contract multiplier from the log and draft a symbology map. See D061.
+
+    Unlike ``inspect``, this reads your numbers, and it says so: it inverts the
+    P&L identity of ``01`` per trade to recover the multiplier each symbol
+    implies. The value is printed beside an empty slot, never into it. D007
+    keeps the multiplier a declared input, and a number taken from the same
+    file it will later validate is not independent evidence of anything. Its
+    use is to disagree with what you declare when what you declare is wrong.
+    """
+    from qvalid.adapters.probe import Detectability, probe_trade_log
+    from qvalid.adapters.tradelog import load_mapping
+
+    for label, target in (("trade log", log), ("mapping", mapping)):
+        if not target.is_file():
+            typer.echo(f"no {label} at {target}", err=True)
+            raise typer.Exit(code=2)
+    try:
+        found = probe_trade_log(log, load_mapping(mapping))
+    except QvalError as exc:
+        typer.echo(f"{type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"# draft symbology for {log.name}. The multipliers are NOT filled in.")
+    typer.echo("# Each `implied` is what your own file's P&L arithmetic works out to.")
+    typer.echo("# Put your contract's real multiplier in the empty slot and compare. See D007.")
+    typer.echo("symbols:")
+    for entry in found:
+        note = (
+            f"implied {entry.implied:.6g}, from {entry.n_usable} trades"
+            if entry.is_readable
+            else (
+                f"NOT READABLE: the P&L column is rounded to {entry.pnl_quantum:g}, "
+                f"against a typical trade of {entry.typical_pnl:g}"
+            )
+        )
+        typer.echo(f"  {entry.symbol}:")
+        typer.echo(f"    multiplier:   # {note}")
+        typer.echo("    tick_size:    # smallest price increment; the file cannot show this")
+        typer.echo("    venue:        # exchange or broker")
+        typer.echo("    currency:")
+        typer.echo("    calendar: WEEKDAYS_UTC")
+        typer.echo(f"    contract_root: {entry.symbol}")
+        typer.echo("    source_ids:")
+        typer.echo(f"      generic: {entry.symbol}")
+
+    typer.echo("")
+    typer.echo("# P&L convention, which the mapping must declare and the identity cannot check:")
+    for entry in found:
+        if entry.detectability is Detectability.DECISIVE:
+            typer.echo(
+                f"#   {entry.symbol}: consistent with pnl_convention: {entry.convention} "
+                f"(spread {min(entry.spread_net, entry.spread_gross):.1e} against "
+                f"{max(entry.spread_net, entry.spread_gross):.1e} for the other)"
+            )
+        elif entry.detectability is Detectability.NO_COST:
+            typer.echo(f"#   {entry.symbol}: every fee is zero, so NET and GROSS coincide here.")
+        else:
+            typer.echo(
+                f"#   {entry.symbol}: costs are smaller than the rounding of the P&L column, "
+                "so the file cannot say. You must know. See D017."
+            )
+
+
+@app.command()
 def ui(
     port: int = typer.Option(8765, help="Port on the loopback interface."),
     open_browser: bool = typer.Option(True, "--open/--no-open", help="Open a browser."),

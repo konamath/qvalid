@@ -276,6 +276,20 @@ e o acordo com o mapeamento que uma pessoa escreveu à mão.
 do autor. Todo número verificado até aqui veio de fixture, de dado sintético ou do S&P 500 do
 FRED. Enquanto isso não acontecer, a etapa 2 abaixo não tem insumo para ser decidida.
 
+### v1.7 A segunda parede, entregue em 2026-08-05
+
+`qvalid probe log.csv -m mapping.yaml` inverte a identidade de P&L e recupera o multiplicador
+que o arquivo implica, por símbolo, imprimindo ao lado de um campo vazio e nunca dentro dele.
+Ver D061.
+
+Sobra `run_config.yaml`, e ele é o que deve mesmo sobrar: todo campo dele é escolha da pessoa,
+capital inicial, semente, taxa livre de risco, barreira de ruína, e nenhum é adivinhável a
+partir do arquivo de trades.
+
+**Continua não feito:** rodar sobre uma exportação real de corretora. As duas ferramentas de
+diagnóstico foram construídas exatamente para esse momento e nunca viram um arquivo que não
+fosse fixture, sintético ou o S&P 500 do FRED.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.
