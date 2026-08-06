@@ -56,6 +56,27 @@ This is the design. An absent test is a typed state in the report, never a missi
 never a pass. No aggregate grade is produced, because collapsing heterogeneous evidence into one
 letter is the defect the tool exists to correct.
 
+## And the other direction
+
+A tool that has only ever been shown to say no is indistinguishable from one that cannot say
+anything else. `tests/fixtures/trades_winner.csv` is a log with real positive expectancy and the
+twenty configuration sweep that produced it:
+
+```
+Sharpe (sqrt q)               1.89   interval [0.75, 3.03]
+probability against zero      0.99931
+deflated Sharpe               0.87707   against the best of 20 configurations
+PBO                           0.208
+minimum track record          201 periods required, 760 observed
+verdict                       certainty equivalent +0.396
+```
+
+The two probabilities are the whole argument in one place. Measured against zero this Sharpe is
+all but certain. Measured against the best of the twenty configurations that were tried before
+it, it is merely likely. That gap is what a backtest report normally omits, and the gap is not
+a rounding difference: it is twelve points of confidence that belong to the search rather than
+to the strategy.
+
 ## Install
 
 ```bash

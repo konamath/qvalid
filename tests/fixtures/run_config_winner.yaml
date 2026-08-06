@@ -1,0 +1,13 @@
+# A estratégia vencedora e a busca que a produziu. Existe para responder uma
+# pergunta que nenhum outro exemplo respondia: a ferramenta consegue aprovar
+# alguma coisa. Ver D065.
+symbology_path: symbology.yaml
+mapping_path: mapping_generic.yaml
+initial_capital: 100000.0
+basis: FIXED_INITIAL
+seed: 20260805
+risk_free_rate: 0.02
+n_paths: 2000
+ruin_barrier: 80000.0
+n_trials: 20
+trials_path: trials_winner.csv

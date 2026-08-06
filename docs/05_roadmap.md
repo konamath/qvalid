@@ -319,6 +319,15 @@ basta, em vez de sair como `FAILED`. Ver D064. Era o achado que D062 deixou em a
 maior do que o nome de uma exceção: o relatório mais completo do projeto tinha uma seção ausente
 onde nada tinha dado errado, o que inverte a regra de `02` seção 7.
 
+### v1.11 A ferramenta aprova, entregue em 2026-08-05
+
+Todo relatório que o projeto já tinha produzido terminava em veredito negativo ou suprimido, e o
+teste do veredito se chamava "estratégia perdedora ainda recebe veredito negativo". Faltava a
+fixture vencedora com a busca que a produziu. Ver D065.
+
+Ela aprova, e nenhum defeito de assimetria apareceu. Contra zero o Sharpe é quase certo, 0,99931;
+contra a melhor de vinte configurações, 0,87707. Essa diferença é o produto inteiro.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

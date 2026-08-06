@@ -2159,6 +2159,63 @@ completo do projeto tinha uma seção ausente.
 
 ---
 
+## D065. A ferramenta nunca tinha aprovado nada
+
+**Data.** 2026-08-05
+**Status.** aceita
+
+**Contexto.** Perguntando qual era a afirmação mais fraca do projeto, a resposta foi
+desconfortável: **todo relatório que este projeto já produziu de ponta a ponta terminou em
+veredito negativo ou suprimido.** O teste que cobria o veredito chamava-se literalmente
+`test_a_losing_strategy_still_gets_a_negative_verdict`. Não existia fixture de estratégia
+vencedora com a busca que a produziu, logo não existia execução completa em que a deflação
+tivesse algo a deflacionar e o veredito pudesse aprovar.
+
+Isso importa por dois motivos. Uma ferramenta que só foi vista dizendo não é indistinguível de
+uma que não sabe dizer outra coisa, e a afirmação central do produto é que ela **decide**. E um
+defeito de assimetria, sinal trocado ou lógica de um lado só, viveria escondido para sempre num
+projeto que nunca exercita o lado positivo.
+
+**Decisão.** `trades_winner.csv`, com expectância positiva real, e `trials_winner.csv`, a
+varredura de vinte configurações da qual ele é a vencedora. O log satisfaz a identidade de
+coerência por construção: o movimento é sorteado em ticks inteiros e o P&L sai da identidade,
+não o contrário.
+
+**Resultado: ela aprova, e nenhum defeito de assimetria apareceu.**
+
+    Sharpe anualizado             1,89     intervalo [0,75, 3,03]
+    probabilidade contra zero     0,99931
+    Sharpe deflacionado           0,87707  contra a melhor de 20 configurações
+    PBO                           0,208
+    registro mínimo               201 períodos exigidos, 760 observados
+    veredito                      equivalente de certeza +0,396
+
+**As duas probabilidades são o argumento inteiro num só lugar.** Contra zero este Sharpe é
+quase certo. Contra a melhor das vinte configurações tentadas antes dele, é apenas provável.
+Doze pontos de confiança que pertencem à busca e não à estratégia, e é exatamente isso que um
+relatório de backtest normalmente omite.
+
+Vale registrar também que `track_record` disse `sufficient: True` pela primeira vez. D064 tinha
+feito a seção parar de falhar quando nenhum comprimento basta; aqui ela reporta um comprimento
+que **já foi atingido**, que é o outro lado da mesma seção e também nunca tinha sido visto.
+
+**Os testes são ordenações, não limiares.** Limiar sobre probabilidade deflacionada seria número
+escolhido para passar. `probability_against_zero > probability` é a demonstração do produto e
+vale para qualquer entrada em que ele esteja funcionando. Idem para o máximo esperado ficar entre
+a mediana e a melhor das tentativas, e para o logit não passar do próprio teto, que foi o erro 2
+de D025 mantido como guarda.
+
+**Verificação independente.** Retorno acumulado e Sharpe anualizado conferidos contra cálculo
+feito direto do CSV, sem importar nada da biblioteca. Batem em ponto flutuante. O Sharpe só
+fecha sob conversão geométrica da taxa livre de risco, confirmando de novo o que D062 achou.
+
+**Consequência.** O README passa a mostrar as duas direções. Mostrar só o exemplo suprimido
+descrevia com precisão a honestidade da ferramenta e deixava em aberto se ela tem poder de
+resolução, que é uma pergunta diferente e igualmente importante. Fica a lição: cobertura alta e
+846 testes não garantem que o caminho principal do produto tenha sido percorrido uma vez.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo
