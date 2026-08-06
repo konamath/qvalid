@@ -518,9 +518,13 @@ def run_validation(
         It needs no trial matrix, so unlike the deflation it can run on any
         input, and it answers a question the reader has: how long a record with
         these moments would have to be before this Sharpe is distinguishable
-        from the benchmark. When the observed Sharpe is below the benchmark the
-        honest answer is that no length suffices, and the section fails saying
-        exactly that rather than printing a large finite number.
+        from the benchmark.
+
+        When the observed Sharpe is at or below the benchmark, no length
+        suffices, and the section **runs** and says so. It used to fail here,
+        which put decisive negative evidence in the same bucket as a section
+        that never executed. ``02`` section 7 forbids the reverse of that, and
+        this was the same error pointed the other way. See D064.
         """
         length = minimum_track_record_length(
             returns,
@@ -528,9 +532,12 @@ def run_validation(
             target_probability=config.confidence_level,
         )
         return {
-            "periods": _number(length.periods),
-            "years": _number(length.years),
+            "attainable": length.attainable,
+            "periods": None if length.periods is None else _number(length.periods),
+            "years": None if length.years is None else _number(length.years),
             "observed_periods": returns.values.size,
+            "observed_sharpe": _number(length.observed_sharpe),
+            "sufficient": length.sufficient,
             "benchmark_sharpe": 0.0,
             "target_probability": config.confidence_level,
         }

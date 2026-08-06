@@ -312,6 +312,13 @@ afirmando que navegador e linha de comando emitem os mesmos bytes.
 A etapa 1 de v1.1 agora cobre de fato o que prometia. A etapa 2, aplicação servida com fila,
 continua condicionada a semanas de uso real, e o uso real continua sendo o que falta.
 
+### v1.10 A seção que falhava sem ter falhado, entregue em 2026-08-05
+
+`track_record` passa a rodar quando o Sharpe é negativo, dizendo que nenhum comprimento de série
+basta, em vez de sair como `FAILED`. Ver D064. Era o achado que D062 deixou em aberto, e ele era
+maior do que o nome de uma exceção: o relatório mais completo do projeto tinha uma seção ausente
+onde nada tinha dado errado, o que inverte a regra de `02` seção 7.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.

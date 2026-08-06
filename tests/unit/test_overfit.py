@@ -315,10 +315,28 @@ class TestDegenerateCases:
             probabilistic_sharpe_ratio(np.array([0.01, -0.01]))
 
     def test_a_sharpe_below_the_benchmark_needs_an_infinite_track_record(self) -> None:
+        """Answered, not raised. See D064.
+
+        This used to expect ``InsufficientSampleError``, whose name told the
+        reader to collect more data while the message it carried told them that
+        more data would not help. An infinite requirement is the most
+        informative thing this function ever returns and it is now returned.
+        """
         values = np.random.default_rng(71).normal(-0.0005, SIGMA, 400)
         returns = matrix(values.reshape(-1, 1)).column("c000")
-        with pytest.raises(InsufficientSampleError, match="infinite rather than long"):
-            minimum_track_record_length(returns)
+        result = minimum_track_record_length(returns)
+        assert result.attainable is False
+        assert result.periods is None and result.years is None
+        assert result.sufficient is False
+        assert result.observed_sharpe <= result.benchmark_sharpe
+
+    def test_an_attainable_length_carries_the_number_and_the_flag(self) -> None:
+        values = np.random.default_rng(72).normal(0.0015, SIGMA, 400)
+        returns = matrix(values.reshape(-1, 1)).column("c000")
+        result = minimum_track_record_length(returns)
+        assert result.attainable is True
+        assert result.periods is not None and result.periods > 0.0
+        assert result.observed_sharpe > result.benchmark_sharpe
 
     def test_target_probability_outside_the_unit_interval_is_refused(self) -> None:
         values = np.random.default_rng(73).normal(0.0015, SIGMA, 400)

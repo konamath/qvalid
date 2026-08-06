@@ -160,8 +160,22 @@ class TestTheTrackRecordLengthReachesTheReport:
         for a wait that does not end.
         """
         entry_ = entry(run.report, "track_record")
-        assert entry_.status is EvidenceStatus.FAILED
-        assert "infinite rather than long" in (entry_.reason or "")
+        assert entry_.payload["attainable"] is False
+        assert entry_.payload["periods"] is None
+
+    def test_and_the_section_runs_rather_than_failing(self, run) -> None:
+        """D064. This asserted FAILED until the first end to end walk showed a
+        reader a report whose only absent section was one where nothing had
+        gone wrong. ``02`` section 7 forbids treating absence as a verdict;
+        filing a decisive negative result as absence is that rule inverted."""
+        entry_ = entry(run.report, "track_record")
+        assert entry_.status is EvidenceStatus.RAN
+        assert entry_.reason is None
+        assert "track_record" not in run.report.sections_absent
+
+    def test_the_reader_is_told_how_far_below_the_benchmark_it_sat(self, run) -> None:
+        payload = entry(run.report, "track_record").payload
+        assert payload["observed_sharpe"] < payload["benchmark_sharpe"]
 
     def test_a_winning_strategy_gets_a_finite_length(self, tmp_path: Path) -> None:
         """Otherwise the section would be failing for a reason other than the Sharpe."""
@@ -184,7 +198,9 @@ class TestTheTrackRecordLengthReachesTheReport:
             initial_capital=100_000.0,
             n_active=900,
         )
-        assert minimum_track_record_length(series).periods > 0.0
+        result = minimum_track_record_length(series)
+        assert result.attainable is True
+        assert result.periods is not None and result.periods > 0.0
 
     def test_a_higher_risk_free_rate_demands_a_longer_record(self) -> None:
         """D055 again, one level down, and stated as a monotonicity.

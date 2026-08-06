@@ -2102,6 +2102,63 @@ a corrida não é reproduzível, que é o ponto inteiro de D016.
 
 ---
 
+## D064. Evidência decisivamente negativa não é evidência ausente
+
+**Data.** 2026-08-05
+**Status.** aceita
+**Refina.** D031
+
+**Contexto.** D062 registrou como observação, e explicitamente não corrigiu, que `track_record`
+saía `FAILED` quando o Sharpe é negativo, levantando `InsufficientSampleError`. Deixei em aberto
+por não querer mexer no conjunto de estados de D031 com base em um exemplo. Rodando o exemplo
+mais completo do projeto, `run_config_trials.yaml`, ficou claro que o problema é maior do que o
+nome de uma exceção: **a única seção ausente do relatório era uma onde nada tinha dado errado.**
+
+O argumento que decide não é estético. `02` seção 7 existe para impedir que ausência de
+evidência seja lida como aprovação, e é o princípio central do produto. Aqui a evidência não
+está ausente: ela é decisiva e negativa. Arquivar resultado decisivamente negativo como ausência
+é exatamente a mesma regra, invertida, e vinha sendo violada dentro do próprio relatório.
+
+Somando a isso, o nome da exceção contradizia a mensagem que ela carregava.
+`InsufficientSampleError` diz "colete mais dados" e o texto dizia "mais dados não vão ajudar".
+
+**Decisão.** `minimum_track_record_length` deixa de levantar quando o Sharpe não supera o
+referencial e passa a devolver `TrackRecordLength` com `attainable=False`, `periods=None`,
+`years=None` e `observed_sharpe` preenchido. A seção **roda** e diz que nenhum comprimento
+basta. `periods` é `None` e não infinito por dois motivos: quem ignorar `attainable` recebe nada
+em vez de número para planejar em cima, e `Infinity` não é JSON estrito, o que quebraria a saída
+de referência que `04` exige comparável.
+
+Nenhum estado novo em D031. Os quatro continuam classificando **por que não há resultado**, e o
+que mudou é que aqui passou a haver resultado.
+
+**Verificado, não suposto.** A diferença contra a referência comprometida foi exatamente um
+elemento do painel, `panel[7]`, e mais nada se moveu. O JSON regenerado não contém `Infinity`,
+`-Infinity` nem `NaN`, conferido com `json.loads` recusando constantes. O HTML imprime
+`attainable: no`, `periods: undefined`, `observed_sharpe: -0.0564471`, que é mais informativo do
+que a seção ausente que estava ali antes.
+
+**A mesma inversão em outro lugar?** Varri os setenta e poucos `raise` de `core` perguntando de
+cada um se é "não consigo formar a estatística" ou "a resposta é ruim". Quase todos são o
+primeiro: poucas observações, dispersão zero, argumento fora do intervalo. Dois têm forma
+parecida com esta, `risk.py` recusando barreira igual ou acima do capital inicial, e a fração de
+Kelly sob dispersão nula. Os dois ficam como estão: o primeiro é erro de configuração e não
+propriedade dos retornos, e o segundo é degenerado a ponto de não aparecer em arquivo real. O
+`track_record` era o único caso **realista**, porque estratégia perdedora é comum.
+
+**Alternativas descartadas.** Só renomear a exceção, descartada porque o status continuaria
+`FAILED` e o leitor continuaria vendo falha onde não houve. Acrescentar um quinto estado a D031,
+descartada porque não há ausência para classificar. `periods` infinito em vez de `None`,
+descartada pelo JSON estrito e pelo risco de alguém formatar o infinito como número.
+
+**Consequência.** Uma seção a mais roda em todo relatório de estratégia perdedora, que é a
+maioria dos relatórios que esta ferramenta existe para produzir. Fica a lição de método: eu
+tinha visto isto em D062 e adiado por prudência, e a prudência estava certa quanto a não mexer
+sem medir e errada quanto ao tamanho. O que fez a diferença foi perguntar por que o exemplo mais
+completo do projeto tinha uma seção ausente.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

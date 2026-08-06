@@ -378,21 +378,37 @@ class TrackRecordLength:
 
     Attributes
     ----------
-    periods : float
-        In periods of the current grid.
-    years : float
+    attainable : bool
+        Whether any finite length would do. ``False`` when the observed Sharpe
+        does not exceed the benchmark, where the required length is infinite.
+        That is a **result**, not a failure, and D064 records why the
+        distinction is worth a field: an observed Sharpe below the threshold
+        is decisive negative evidence, and filing it as an absent section
+        inverts the rule of ``02`` section 7 that absence is never a verdict.
+    periods : float or None
+        In periods of the current grid. ``None`` when not attainable, so a
+        caller that ignores :attr:`attainable` gets nothing rather than a
+        number it can plan around.
+    years : float or None
         The same quantity in calendar time, using ``periods_per_year``.
     observed_periods : int
     sufficient : bool
-        Whether the sample already exceeds the requirement.
+        Whether the sample already exceeds the requirement. Always ``False``
+        when the requirement cannot be met at any length.
+    observed_sharpe : float
+        Per period, excess of the risk free rate. Kept because it is what the
+        unattainable case is about, and a reader who sees no length wants to
+        know how far below the benchmark it sat.
     target_probability : float
     benchmark_sharpe : float
     """
 
-    periods: float
-    years: float
+    attainable: bool
+    periods: float | None
+    years: float | None
     observed_periods: int
     sufficient: bool
+    observed_sharpe: float
     target_probability: float
     benchmark_sharpe: float
 
@@ -427,11 +443,12 @@ def minimum_track_record_length(
     Raises
     ------
     InsufficientSampleError
-        If the observed Sharpe does not exceed the threshold, where the required
-        length is infinite rather than large. That is the honest answer: no
-        amount of data makes a Sharpe below the threshold significantly above
-        it, and returning a big finite number would invite the reader to plan
-        for it.
+        If ``target_probability`` is not inside the open interval (0, 1), which
+        is a bad argument rather than a fact about the returns.
+
+        A Sharpe at or below the benchmark used to be raised here too. It is
+        now returned with ``attainable=False``, because it is an answer and not
+        an error; see D064 and :class:`TrackRecordLength`.
 
     Notes
     -----
@@ -448,29 +465,38 @@ def minimum_track_record_length(
     per_period = de_annualise_rate(risk_free_rate, returns.periods_per_year)
     values = np.asarray(returns.values, dtype=np.float64) - per_period
     _, sharpe, skewness, kurtosis = _sample_moments(values)
-    if sharpe <= benchmark_sharpe:
-        raise InsufficientSampleError(
-            f"the observed per period Sharpe of {sharpe:.6f} does not exceed the "
-            f"benchmark of {benchmark_sharpe:.6f}, so the required track record is "
-            "infinite rather than long: more data of the same process will not make "
-            "this Sharpe significantly larger than the threshold",
-            observed=sharpe,
-            threshold=benchmark_sharpe,
-        )
     if not 0.0 < target_probability < 1.0:
         raise InsufficientSampleError(
             "target probability must lie in the open interval (0, 1)",
             observed=target_probability,
             threshold=(0.0, 1.0),
         )
+    if sharpe <= benchmark_sharpe:
+        # Not an error. No finite length makes a Sharpe at or below the
+        # threshold significantly above it, so the answer is infinity, and
+        # infinity is the most informative thing this function ever says. It
+        # used to be raised as InsufficientSampleError, whose name told the
+        # reader to collect more data while its own message told them not to.
+        return TrackRecordLength(
+            attainable=False,
+            periods=None,
+            years=None,
+            observed_periods=returns.n_periods,
+            sufficient=False,
+            observed_sharpe=sharpe,
+            target_probability=target_probability,
+            benchmark_sharpe=benchmark_sharpe,
+        )
     variance_factor = 1.0 - skewness * sharpe + (kurtosis - 1.0) / 4.0 * sharpe * sharpe
     quantile = float(norm.ppf(target_probability))
     periods = 1.0 + variance_factor * (quantile / (sharpe - benchmark_sharpe)) ** 2
     return TrackRecordLength(
+        attainable=True,
         periods=periods,
         years=periods / returns.periods_per_year,
         observed_periods=returns.n_periods,
         sufficient=returns.n_periods >= periods,
+        observed_sharpe=sharpe,
         target_probability=target_probability,
         benchmark_sharpe=benchmark_sharpe,
     )
