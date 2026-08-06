@@ -1,0 +1,25 @@
+# Example desk rules, and only an example: these are not any real firm's terms.
+#
+# `verified_on` and `source_url` have no defaults on purpose. Desk rules change,
+# and a stale file that runs in silence is the failure this project spends its
+# time removing, so the file has to say when it was checked and against what.
+# The report prints both beside the result. See D073.
+rules_id: EXAMPLE-50K
+verified_on: 2026-08-06
+source_url: https://example.invalid/rules
+account_size: 50000.0
+profit_target: 3000.0
+max_loss: 2000.0
+trailing: true
+daily_loss_limit: 1000.0
+min_trading_days: 5
+max_evaluation_days: 60
+evaluation_fee: 165.0
+fee_refunded_on_pass: true
+funded:
+  profit_split: 0.9
+  payout_cycle_days: 14
+  max_loss: 2000.0
+  min_payout: 0.0
+  trailing: true
+  daily_loss_limit: 1000.0

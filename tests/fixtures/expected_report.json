@@ -81,6 +81,15 @@
       "warnings": []
     },
     {
+      "name": "propfirm",
+      "observed": null,
+      "payload": null,
+      "reason": "no desk rules were supplied, so there is no desk to simulate against; the rules of a proprietary desk are a fact about that desk and cannot be assumed, see D073",
+      "status": "NOT_REQUESTED",
+      "threshold": null,
+      "warnings": []
+    },
+    {
       "name": "risk_tail",
       "observed": null,
       "payload": {
@@ -165,6 +174,24 @@
       "warnings": []
     },
     {
+      "name": "pbo",
+      "observed": null,
+      "payload": null,
+      "reason": "the number of configurations tested was not declared, so no correction for search was applied; estimating it would fabricate the input that determines the result, see D004",
+      "status": "NOT_REQUESTED",
+      "threshold": null,
+      "warnings": []
+    },
+    {
+      "name": "spa",
+      "observed": null,
+      "payload": null,
+      "reason": "the number of configurations tested was not declared, so no correction for search was applied; estimating it would fabricate the input that determines the result, see D004",
+      "status": "NOT_REQUESTED",
+      "threshold": null,
+      "warnings": []
+    },
+    {
       "name": "regimes",
       "observed": null,
       "payload": {
@@ -229,7 +256,7 @@
     "input_name": "trades_long.csv",
     "input_sha256": "6c115c75879363924fe935b5b6634f684854e65b8f88096c9ad57398231c7c74",
     "n_replications": 3000,
-    "package_version": "2.1.0",
+    "package_version": "2.2.0",
     "seed": 20260804
   },
   "warnings": []

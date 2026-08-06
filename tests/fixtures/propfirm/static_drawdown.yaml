@@ -1,3 +1,7 @@
+# verified_on and source_url have no defaults: desk rules change, and a stale
+# file that runs in silence is the failure this project removes. See D073.
+verified_on: 2026-08-06
+source_url: https://example.invalid/rules
 # Mesa de drawdown estático, medido do saldo inicial. Conta de 50k.
 # Números ilustrativos: verifique contra as regras vigentes da mesa antes de usar.
 rules_id: STATIC_50K

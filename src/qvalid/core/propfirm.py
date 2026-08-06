@@ -46,6 +46,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, ClassVar
@@ -166,6 +167,8 @@ class PropFirmRules(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     rules_id: str
+    verified_on: date
+    source_url: str = Field(min_length=1)
     account_size: float = Field(gt=0.0)
     profit_target: float = Field(gt=0.0)
     max_loss: float = Field(gt=0.0)

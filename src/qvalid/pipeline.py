@@ -44,7 +44,9 @@ from qvalid.core.overfit import (
     deflated_sharpe_ratio,
     minimum_track_record_length,
     probability_of_backtest_overfitting,
+    superior_predictive_ability,
 )
+from qvalid.core.propfirm import evaluate, load_rules
 from qvalid.core.regimes import attribute_by_regime, label_regimes
 from qvalid.core.resample import resample_equity_paths
 from qvalid.core.risk import (
@@ -107,6 +109,10 @@ class RunConfig(BaseModel):
         CSV with one column of reference returns per period, for the regime
         grid. ``None`` skips the regime section.
     confidence_level : float
+    propfirm_rules_path : str or None
+        One desk's rules, relative to this file. Absent means the section is
+        ``NOT_REQUESTED``: whether a strategy would pass an evaluation is a
+        question about a desk, and there is no desk to assume. See D073.
     verdict_requirements : tuple of str
         Sections that must have run before a certainty equivalent is formed.
         Defaults to the strict list of ``core/verdict.py``. Shortening it is a
@@ -132,6 +138,7 @@ class RunConfig(BaseModel):
     n_trials: int | None = None
     trials_path: str | None = None
     reference_path: str | None = None
+    propfirm_rules_path: str | None = None
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL
     verdict_requirements: tuple[str, ...] = DEFAULT_RANKING_REQUIREMENTS
 
@@ -424,7 +431,7 @@ def run_validation(
         )
 
     if bootstrap is None:
-        for name in ("risk_tail", "drawdown_distribution", "risk_of_ruin"):
+        for name in ("risk_tail", "drawdown_distribution", "risk_of_ruin", "propfirm"):
             panel.append(
                 Evidence(
                     name=name,
@@ -434,6 +441,7 @@ def run_validation(
             )
     else:
         paths = bootstrap.paths
+        panel.append(_propfirm_section(base, config, paths, returns.period))
         panel.append(
             _section(
                 "risk_tail",
@@ -559,29 +567,25 @@ def run_validation(
         trials_error = f"{type(exc).__name__}: {exc}"
 
     if trials_error is not None:
-        for name in ("deflated_sharpe", "pbo"):
+        for name in ("deflated_sharpe", "pbo", "spa"):
             panel.append(Evidence(name=name, status=EvidenceStatus.FAILED, reason=trials_error))
-    elif config.n_trials is None:
-        panel.append(
-            Evidence(
-                name="deflated_sharpe",
-                status=EvidenceStatus.NOT_REQUESTED,
-                reason="the number of configurations tested was not declared, so no "
-                "correction for search was applied; estimating it would fabricate the "
-                "input that determines the result, see D004",
-            )
+    elif config.n_trials is None or trials is None:
+        # All three, not just the deflation. ``pbo`` and ``spa`` also need the
+        # matrix, and a section that vanishes from the panel is a different
+        # object from one present and NOT_REQUESTED: D031 calls the first a bug
+        # of this pipeline, and ``entry`` raises KeyError for it. ``pbo`` had
+        # been vanishing since D052 gave the matrix a path. See D073.
+        why = (
+            "the number of configurations tested was not declared, so no correction for "
+            "search was applied; estimating it would fabricate the input that determines "
+            "the result, see D004"
+            if config.n_trials is None
+            else "a trial count was declared but the matrix of all tested configurations "
+            "was not supplied; these tests need the dispersion across trial Sharpe ratios, "
+            "which a single log cannot provide. Build one with `qvalid trials`, see D072"
         )
-    elif trials is None:
-        panel.append(
-            Evidence(
-                name="deflated_sharpe",
-                status=EvidenceStatus.NOT_REQUESTED,
-                reason="a trial count was declared but the matrix of all tested "
-                "configurations was not supplied; the deflation needs the dispersion "
-                "across trial Sharpe ratios, which a single log cannot provide. "
-                "Declare trials_path, see D052",
-            )
-        )
+        for name in ("deflated_sharpe", "pbo", "spa"):
+            panel.append(Evidence(name=name, status=EvidenceStatus.NOT_REQUESTED, reason=why))
     else:
         declared, kept = config.n_trials, len(trials.config_ids)
         incoherent = (
@@ -632,6 +636,37 @@ def run_validation(
             }
 
         panel.append(_section("pbo", _pbo))
+
+        def _spa() -> dict[str, Any]:
+            """``02`` section 3.4, built since v0.4 and never once reachable.
+
+            The benchmark is a vector of zeros, which tests superiority over
+            holding cash. That is the question a single strategy's owner is
+            actually asking, and it needs no input the matrix has not already
+            supplied, which is why this section costs nothing to reach once
+            D072 made the matrix easy to build. See D073.
+
+            Read ``p_value_consistent``. The other two recentrings bracket it
+            and are reported so the bracket is visible, per ``02`` 3.4.
+            """
+            result = superior_predictive_ability(
+                trials,
+                np.zeros(trials.n_periods, dtype=np.float64),
+                seed=config.seed,
+            )
+            return {
+                "p_value_consistent": _number(result.p_value_consistent),
+                "p_value_lower": _number(result.p_value_lower),
+                "p_value_upper": _number(result.p_value_upper),
+                "p_value_reality_check": _number(result.p_value_reality_check),
+                "statistic": _number(result.statistic),
+                "best_config": result.best_config,
+                "benchmark": "zero, which is holding cash",
+                "n_configs": result.n_configs,
+                "n_bootstrap": result.n_bootstrap,
+            }
+
+        panel.append(_section("spa", _spa))
 
     # Same reason as the trial matrix above, and the same defect since v0.6: a
     # reference series misaligned by one session used to abort everything.
@@ -808,6 +843,65 @@ def run_validation(
         warnings=imported.warnings,
     )
     return ValidationRun(report, tuple(charts))
+
+
+def _propfirm_section(base: Path, config: RunConfig, paths: Any, period: Period) -> Evidence:
+    """``02`` section 6, built in v0.8 and unreachable until D073.
+
+    Two whole modules of specified, tested mathematics never reached a report,
+    and this is one of them. It answers what a desk's own rules do to the
+    distribution of paths the strategy generates: probability of passing the
+    evaluation, probability of a payout, expected value net of the evaluation
+    fee, and how long the first payout takes.
+
+    Three states and they are distinct. No rule file is ``NOT_REQUESTED``,
+    because whether a strategy passes an evaluation is a question about a desk
+    and there is no desk to assume. A grid that is not daily is ``SUPPRESSED``
+    with the observed period and the required one, because desk rules are daily
+    and D036 makes the order of the within day checks part of the model rather
+    than an implementation detail. Anything else typed is ``FAILED``.
+    """
+    if config.propfirm_rules_path is None:
+        return Evidence(
+            name="propfirm",
+            status=EvidenceStatus.NOT_REQUESTED,
+            reason="no desk rules were supplied, so there is no desk to simulate against; "
+            "the rules of a proprietary desk are a fact about that desk and cannot be assumed, "
+            "see D073",
+        )
+    if period is not Period.DAILY:
+        return Evidence(
+            name="propfirm",
+            status=EvidenceStatus.SUPPRESSED,
+            reason="desk rules are daily, and the run is on a coarser grid, so the daily loss "
+            "limit and the order of the within day checks of D036 have nothing to act on",
+            observed=period.value,
+            threshold=Period.DAILY.value,
+        )
+
+    def _payload() -> dict[str, Any]:
+        rules = load_rules(base / str(config.propfirm_rules_path))
+        result = evaluate(paths, rules, confidence_level=config.confidence_level)
+        return {
+            "rules_id": result.rules_id,
+            "rules_verified_on": rules.verified_on.isoformat(),
+            "rules_source": rules.source_url,
+            "pass_probability": _number(result.pass_probability),
+            "pass_standard_error": _number(result.pass_standard_error),
+            "payout_probability": _number(result.payout_probability),
+            "expected_net_value": _number(result.expected_net_value),
+            "net_value_percentiles": {
+                str(k): _number(v) for k, v in result.net_value_percentiles.items()
+            },
+            "days_to_first_payout": {
+                str(k): _number(v) for k, v in result.days_to_first_payout.items()
+            },
+            "outcome_counts": dict(result.outcome_counts),
+            "n_paths": result.n_paths,
+            "horizon_days": result.horizon_days,
+        }
+
+    return _section("propfirm", _payload)
 
 
 def _ruin_payload(paths: Any, barrier: float, config: RunConfig) -> dict[str, Any]:

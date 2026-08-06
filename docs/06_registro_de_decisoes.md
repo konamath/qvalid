@@ -2587,6 +2587,66 @@ ser alcançável por quem apenas guardou os logs das próprias tentativas.
 
 ---
 
+## D073. Duas seções inteiras que nunca chegaram ao relatório, e uma que sumia
+
+**Data.** 2026-08-06
+**Status.** aceita
+
+**Contexto.** Primeira versão priorizada pela análise de `docs/08`. A medição que a motivou, no
+próprio repositório:
+
+    funcoes publicas em core/propfirm.py    2
+    chamadas a propfirm no pipeline         0
+    chamadas a superior_predictive_ability  0
+
+`core/propfirm.py` implementa a seção 6 de `02` inteira, e `superior_predictive_ability`
+implementa Hansen (2005) da seção 3.4. Os dois escritos, especificados e testados; o pipeline não
+chamava nenhum. É o mesmo defeito que D052 achou na matriz de tentativas e D056 na seção 3.2,
+pela terceira e quarta vez. Vale registrar que **é a manchete do concorrente**: o QuantPad anuncia
+Monte Carlo de mesa proprietária como recurso de destaque, e ele estava aqui, desligado.
+
+**Decisão.** As duas ganham caminho até o painel.
+
+**SPA não exige insumo novo.** A referência é um vetor de zeros, o que testa superioridade sobre
+caixa, e essa é a pergunta que o dono de uma estratégia única está de fato fazendo. Logo a seção
+fica alcançável no instante em que a matriz existe, e D072 acabou de tornar a matriz fácil de
+construir. Os três recentramentos de Hansen são impressos porque `02` 3.4 pede que o intervalo
+seja visível; o que se lê é o consistente.
+
+**Mesa proprietária tem três estados distintos.** Sem arquivo de regra é `NOT_REQUESTED`, porque
+se uma estratégia passa numa avaliação é fato sobre aquela mesa e não há mesa a supor. Grade mais
+grossa que diária é `SUPPRESSED` com o período observado e o exigido, porque regra de mesa é
+diária e D036 torna a ordem das checagens intradiárias parte do modelo. Qualquer erro tipado é
+`FAILED`.
+
+**Regra de mesa passa a exigir data de verificação.** `PropFirmRules` ganha `verified_on` e
+`source_url`, **sem padrão**, e o relatório imprime os dois ao lado do resultado. Regra de mesa
+muda, e arquivo desatualizado rodando em silêncio é exatamente a classe de falha que esta semana
+inteira encontrou. Nenhuma regra de mesa real entra no repositório: entra um exemplo, e a regra
+que vale é a da mesa que o autor usa, conforme D071.
+
+**O terceiro achado, e não estava planejado.** Ao ligar o SPA descobri que `pbo` **sumia do
+painel** em vez de aparecer como `NOT_REQUESTED` sempre que não havia matriz. D031 diz com todas
+as letras que seção ausente do painel é bug do pipeline e seção presente com `NOT_REQUESTED` é
+ausência declarada, e `entry` levanta `KeyError` para a primeira. Eu tinha encontrado esse
+`KeyError` mais cedo na mesma sessão, ao inspecionar um relatório, e passei batido: li como
+ausência esperada o que era o defeito que D031 nomeia. As três seções que dependem da matriz
+passam a compartilhar um destino, com um teste que exige que os três estados sejam iguais.
+
+**Alternativas descartadas.** Empacotar regras de Topstep, Apex e Take Profit Trader, descartada
+por D071, uso próprio, e porque regra alheia em repositório envelhece sem avisar. Exigir série de
+comparação para o SPA, descartada porque zero já é a referência que a pergunta pede e exigir mais
+manteria desligada uma seção que custa nada ligar. Deixar `pbo` fora do painel, descartada por
+D031.
+
+**Consequência.** O painel vai de 11 para 14 seções. Verificado sobre a fixture vencedora com
+regra de exemplo: probabilidade de aprovação 0,458, probabilidade de saque 0,286, valor esperado
+líquido do custo da avaliação mais 1152, e SPA com p consistente 0,003 contra caixa. Restam duas
+das quatro ocorrências deste defeito por procurar: a lição é que **função em `core` sem chamada
+no pipeline é código morto com teste verde**, e isso não aparece em cobertura.
+
+---
+
 ## Modelo para novas entradas
 
     ## D0XX. Título curto no imperativo

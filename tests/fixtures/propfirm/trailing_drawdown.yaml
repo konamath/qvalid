@@ -1,3 +1,7 @@
+# verified_on and source_url have no defaults: desk rules change, and a stale
+# file that runs in silence is the failure this project removes. See D073.
+verified_on: 2026-08-06
+source_url: https://example.invalid/rules
 # Mesa de drawdown móvel, medido do pico. É o campo mais consequente da ficha:
 # o mesmo alvo com a mesma perda máxima é muito mais difícil sob trailing.
 rules_id: TRAILING_50K

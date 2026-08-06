@@ -371,6 +371,12 @@ Escopo decidido em D071 e detalhado em `docs/08`: validador, não plataforma, us
 variantes, e o navegador ganha onde recebê la. O veredito deixa de ser inalcançável pela
 interface. Ver D072.
 
+### v2.2 Ligar o que já estava construído, entregue em 2026-08-06
+
+Mesa proprietária e SPA chegam ao painel, que vai de 11 para 14 seções. Ver D073. Ao ligar,
+apareceu que `pbo` sumia do painel sem matriz em vez de aparecer como ausência declarada, que
+D031 chama de bug do pipeline.
+
 Restrição permanente: nenhuma lógica de cálculo na camada de interface. A interface chama a
 API pública e renderiza o `ValidationReport`. Qualquer cálculo que apareça no front é dívida
 que impede voltar ao CLI e quebra a reprodutibilidade.
