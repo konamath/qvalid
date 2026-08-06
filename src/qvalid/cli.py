@@ -208,9 +208,19 @@ def fetch(
     if source not in ("fred", "file"):
         typer.echo(f"unknown source {source!r}; use 'fred' or 'file'", err=True)
         raise typer.Exit(code=2)
-    if source == "file" and (from_file is None or not from_file.is_file()):
-        typer.echo("--source file needs --file pointing at a readable CSV", err=True)
-        raise typer.Exit(code=2)
+    if source == "file":
+        # Three different problems used to share one message, and the one that
+        # actually happens is a path that does not exist. Saying which is the
+        # difference between fixing it and guessing at it.
+        if from_file is None:
+            typer.echo("--source file needs --file pointing at a CSV", err=True)
+            raise typer.Exit(code=2)
+        if not from_file.exists():
+            typer.echo(f"no file at {from_file}", err=True)
+            raise typer.Exit(code=2)
+        if not from_file.is_file():
+            typer.echo(f"{from_file} is a directory, not a CSV", err=True)
+            raise typer.Exit(code=2)
     try:
         cache = LocalCache(cache_dir)
         key = CacheKey(source=source, symbol=symbol, start=start, end=end)

@@ -146,6 +146,37 @@ class TestTheRefusals:
         )
         assert result.exit_code == 2
 
+    def test_the_three_ways_a_file_source_can_be_wrong_say_which(self, tmp_path: Path) -> None:
+        """One message used to cover all three, and the one that actually
+        happens is a path that does not exist. It happened on the first real
+        attempt, against a placeholder path written into a runnable looking
+        command. Saying which is the difference between fixing it and guessing.
+        """
+
+        def run(*extra: str) -> str:
+            result = CliRunner().invoke(
+                app,
+                [
+                    "fetch",
+                    "X",
+                    "--source",
+                    "file",
+                    "--start",
+                    "a",
+                    "--end",
+                    "b",
+                    "--cache",
+                    str(tmp_path / "cache"),
+                    *extra,
+                ],
+            )
+            assert result.exit_code == 2
+            return (result.stdout or "") + (getattr(result, "stderr", "") or "")
+
+        assert "needs --file" in run()
+        assert "no file at" in run("--file", str(tmp_path / "absent.csv"))
+        assert "is a directory" in run("--file", str(tmp_path))
+
     def test_a_file_source_without_a_file(self, tmp_path: Path) -> None:
         result = CliRunner().invoke(
             app,
